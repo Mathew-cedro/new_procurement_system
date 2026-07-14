@@ -235,8 +235,8 @@ class CreateProjectDialog(BaseFormDialog):
         if self.project_data:
             # Edit Mode
             success, result = database_config.update_project(
-                self.project_data["id"], proj_id, name, self.div_input.text().strip(),
-                self.focal_input.text().strip(), self.contact_input.text().strip(),
+                self.project_data["id"], proj_id, name, self.project_data.get("saro_number"),
+                self.div_input.text().strip(), self.focal_input.text().strip(), self.contact_input.text().strip(),
                 self.mode_input.currentText(), abc, self.funds_input.text().strip(),
                 self.source_input.text().strip(), app_cycle
             )
@@ -244,7 +244,7 @@ class CreateProjectDialog(BaseFormDialog):
         else:
             # Add Mode
             success, result = database_config.create_project(
-                proj_id, name, self.div_input.text().strip(), self.focal_input.text().strip(),
+                proj_id, name, None, self.div_input.text().strip(), self.focal_input.text().strip(),
                 self.contact_input.text().strip(), self.mode_input.currentText(), abc,
                 self.funds_input.text().strip(), self.source_input.text().strip(), app_cycle
             )
