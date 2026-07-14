@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QCursor, QDesktopServices
 import os
+import database_config
 
 class ProjectCardWidget(QFrame):
     clicked = Signal(int)  # Emits project_id when clicked
