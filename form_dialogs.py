@@ -3,7 +3,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
     QDoubleSpinBox, QSpinBox, QDateEdit, QCheckBox, QPushButton,
     QFormLayout, QMessageBox, QFrame, QGroupBox, QRadioButton, QButtonGroup,
-    QScrollArea, QWidget
+    QScrollArea, QWidget, QFileDialog
 )
 from PySide6.QtCore import Qt, QDate
 import database_config
@@ -64,7 +64,36 @@ BUTTON_CANCEL_STYLE = """
     }
 """
 
-class CreateProjectDialog(QDialog):
+class BaseFormDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
+        
+    def set_field_validation(self, widget, is_valid):
+        cls_name = widget.metaObject().className()
+        if is_valid:
+            widget.setStyleSheet(f"{cls_name} {{ border: 1px solid #00ffcc; background-color: #2b2b36; }}")
+        else:
+            widget.setStyleSheet(f"{cls_name} {{ border: 1px solid #ff4d4d; background-color: #3b2a2a; }}")
+            
+    def clear_field_validation(self, widget):
+        cls_name = widget.metaObject().className()
+        widget.setStyleSheet(f"{cls_name} {{ border: 1px solid #3a3a4a; background-color: #2b2b36; }}")
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            focus_w = self.focusWidget()
+            if focus_w:
+                if event.modifiers() & Qt.ControlModifier or not focus_w.inherits("QTextEdit"):
+                    self.submit_data()
+                    event.accept()
+                    return
+        super().keyPressEvent(event)
+
+    def validate_inputs(self):
+        return True
+
+class CreateProjectDialog(BaseFormDialog):
     def __init__(self, parent=None, project_data=None):
         super().__init__(parent)
         self.project_data = project_data
@@ -72,8 +101,7 @@ class CreateProjectDialog(QDialog):
             self.setWindowTitle("Edit Project Details")
         else:
             self.setWindowTitle("Create New Procurement Project")
-        self.resize(480, 500)
-        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
+        self.resize(480, 520)
         self.setup_ui()
         
     def setup_ui(self):
@@ -90,10 +118,12 @@ class CreateProjectDialog(QDialog):
         
         self.id_input = QLineEdit()
         self.id_input.setPlaceholderText("e.g. PRJ-2026-0003")
+        self.id_input.textChanged.connect(self.validate_inputs)
         form.addRow("Project ID / PR No *:", self.id_input)
         
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("e.g. Supply and Delivery of Office Laptops")
+        self.name_input.textChanged.connect(self.validate_inputs)
         form.addRow("Project Name *:", self.name_input)
         
         self.div_input = QLineEdit()
@@ -109,7 +139,19 @@ class CreateProjectDialog(QDialog):
         form.addRow("Focal Contact Email:", self.contact_input)
         
         self.mode_input = QComboBox()
-        self.mode_input.addItems(["Shopping", "Public Bidding", "Direct Contracting", "Negotiated Procurement", "Small Value Procurement"])
+        self.mode_input.addItems([
+            "Competitive Bidding",
+            "Limited Source Bidding",
+            "Competitive Dialogue",
+            "Unsolicited Offer with Bid Matching",
+            "Direct Contracting",
+            "Direct Acquisition",
+            "Repeat Order",
+            "Small Value Procurement",
+            "Negotiated Procurement",
+            "Direct Sales",
+            "Direct Procurement for Science, Technology, and Innovation"
+        ])
         form.addRow("Mode of Procurement:", self.mode_input)
         
         self.abc_input = QDoubleSpinBox()
@@ -125,10 +167,9 @@ class CreateProjectDialog(QDialog):
         self.source_input = QLineEdit("GAA")
         form.addRow("Fund Source Type:", self.source_input)
         
-        self.cycle_input = QSpinBox()
-        self.cycle_input.setRange(1, 4)
-        self.cycle_input.setValue(1)
-        form.addRow("APP Cycle:", self.cycle_input)
+        self.cycle_input = QComboBox()
+        self.cycle_input.addItems(["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"])
+        form.addRow("APP *:", self.cycle_input)
         
         # Populate if editing
         if self.project_data:
@@ -145,7 +186,9 @@ class CreateProjectDialog(QDialog):
             self.abc_input.setValue(self.project_data.get("abc_amount", 0.0))
             self.funds_input.setText(self.project_data.get("source_of_funds", ""))
             self.source_input.setText(self.project_data.get("fund_source", ""))
-            self.cycle_input.setValue(self.project_data.get("app_cycle", 1))
+            
+            cycle_val = self.project_data.get("app_cycle", 1)
+            self.cycle_input.setCurrentIndex(max(0, min(cycle_val - 1, 7)))
             
         layout.addLayout(form)
         layout.addSpacing(15)
@@ -166,22 +209,36 @@ class CreateProjectDialog(QDialog):
         btn_layout.addWidget(submit_btn)
         layout.addLayout(btn_layout)
         
+        # Initial validation highlight
+        self.validate_inputs()
+        
+    def validate_inputs(self):
+        id_valid = len(self.id_input.text().strip()) > 0
+        name_valid = len(self.name_input.text().strip()) > 0
+        self.set_field_validation(self.id_input, id_valid)
+        self.set_field_validation(self.name_input, name_valid)
+        return id_valid and name_valid
+        
     def submit_data(self):
+        if not self.validate_inputs():
+            if not self.id_input.text().strip():
+                self.id_input.setFocus()
+            else:
+                self.name_input.setFocus()
+            return
+            
         proj_id = self.id_input.text().strip()
         name = self.name_input.text().strip()
         abc = self.abc_input.value()
+        app_cycle = self.cycle_input.currentIndex() + 1
         
-        if not proj_id or not name:
-            QMessageBox.warning(self, "Validation Error", "Please fill in the Project ID and Project Name fields.")
-            return
-            
         if self.project_data:
             # Edit Mode
             success, result = database_config.update_project(
                 self.project_data["id"], proj_id, name, self.div_input.text().strip(),
                 self.focal_input.text().strip(), self.contact_input.text().strip(),
                 self.mode_input.currentText(), abc, self.funds_input.text().strip(),
-                self.source_input.text().strip(), self.cycle_input.value()
+                self.source_input.text().strip(), app_cycle
             )
             action_name = "updated"
         else:
@@ -189,27 +246,29 @@ class CreateProjectDialog(QDialog):
             success, result = database_config.create_project(
                 proj_id, name, self.div_input.text().strip(), self.focal_input.text().strip(),
                 self.contact_input.text().strip(), self.mode_input.currentText(), abc,
-                self.funds_input.text().strip(), self.source_input.text().strip(), self.cycle_input.value()
+                self.funds_input.text().strip(), self.source_input.text().strip(), app_cycle
             )
             action_name = "created"
-        
         if success:
             QMessageBox.information(self, "Success", f"Project {proj_id} successfully {action_name}!")
             self.accept()
         else:
             QMessageBox.critical(self, "Error", f"Failed to save project:\n{result}")
 
-class AddBidDialog(QDialog):
+class AddBidDialog(BaseFormDialog):
     def __init__(self, project_id, parent=None, bid_data=None):
         super().__init__(parent)
         self.project_id = project_id
         self.bid_data = bid_data
+        
+        self.noa_file_path = None
+        self.reso_file_path = None
+        
         if self.bid_data:
             self.setWindowTitle("Phase 2: Edit Bidding Details")
         else:
             self.setWindowTitle("Phase 2: Add Bidding Details")
-        self.resize(480, 460)
-        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
+        self.resize(480, 560)
         self.setup_ui()
         
     def setup_ui(self):
@@ -226,6 +285,7 @@ class AddBidDialog(QDialog):
         
         self.ref_input = QLineEdit()
         self.ref_input.setPlaceholderText("e.g. BID-2026-0002")
+        self.ref_input.textChanged.connect(self.validate_inputs)
         form.addRow("Bid Reference No *:", self.ref_input)
         
         self.pr_input = QLineEdit()
@@ -243,6 +303,35 @@ class AddBidDialog(QDialog):
         self.reso_input = QLineEdit()
         self.reso_input.setPlaceholderText("e.g. BAC-Reso-2026-12")
         form.addRow("BAC Resolution (if NOA unavailable):", self.reso_input)
+        
+        # Notice of Award (NOA) Document Upload
+        noa_layout = QHBoxLayout()
+        self.noa_lbl = QLabel("<i>No NOA PDF Uploaded</i>")
+        self.noa_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        noa_btn = QPushButton("Browse...")
+        noa_btn.clicked.connect(self.browse_noa)
+        noa_layout.addWidget(self.noa_lbl)
+        noa_layout.addWidget(noa_btn)
+        form.addRow("Notice of Award (NOA) PDF:", noa_layout)
+        
+        # BAC Resolution Checkbox
+        self.reso_check = QCheckBox("Add BAC Resolution Document")
+        self.reso_check.setChecked(False)
+        self.reso_check.stateChanged.connect(self.toggle_reso_upload)
+        form.addRow("", self.reso_check)
+        
+        # BAC Resolution Document Upload (initially hidden)
+        self.reso_upload_widget = QWidget()
+        reso_layout = QHBoxLayout(self.reso_upload_widget)
+        reso_layout.setContentsMargins(0, 0, 0, 0)
+        self.reso_lbl = QLabel("<i>No BAC Reso PDF Uploaded</i>")
+        self.reso_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        reso_btn = QPushButton("Browse...")
+        reso_btn.clicked.connect(self.browse_reso)
+        reso_layout.addWidget(self.reso_lbl)
+        reso_layout.addWidget(reso_btn)
+        form.addRow("BAC Resolution PDF:", self.reso_upload_widget)
+        self.reso_upload_widget.setVisible(False)
         
         self.bacsec_date = QDateEdit(QDate.currentDate())
         self.bacsec_date.setCalendarPopup(True)
@@ -288,6 +377,34 @@ class AddBidDialog(QDialog):
             self.box_a_input.setText(self.bid_data.get("signatory_box_a", ""))
             self.box_c_input.setText(self.bid_data.get("signatory_box_c", ""))
             
+        # Load existing NOA & BAC Reso documents
+        if self.project_id:
+            try:
+                conn = database_config.get_db_connection()
+                cur = conn.cursor()
+                # NOA
+                cur.execute("SELECT * FROM project_documents WHERE project_id = ? AND document_type = 'NOA'", (self.project_id,))
+                row = cur.fetchone()
+                if row and row["file_reference"]:
+                    self.noa_file_path = row["file_reference"]
+                    import os
+                    self.noa_lbl.setText("📄 " + os.path.basename(self.noa_file_path))
+                    self.noa_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                
+                # BAC Reso
+                cur.execute("SELECT * FROM project_documents WHERE project_id = ? AND document_type = 'BAC_Reso'", (self.project_id,))
+                row = cur.fetchone()
+                if row and row["file_reference"]:
+                    self.reso_file_path = row["file_reference"]
+                    import os
+                    self.reso_lbl.setText("📄 " + os.path.basename(self.reso_file_path))
+                    self.reso_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                    self.reso_check.setChecked(True)
+                    self.reso_upload_widget.setVisible(True)
+                conn.close()
+            except Exception as e:
+                print(f"Error loading Phase 2 docs in AddBidDialog: {e}")
+            
         layout.addLayout(form)
         layout.addSpacing(15)
         
@@ -306,7 +423,38 @@ class AddBidDialog(QDialog):
         btn_layout.addWidget(submit_btn)
         layout.addLayout(btn_layout)
         
+        # Initial validation highlight
+        self.validate_inputs()
+        
+    def toggle_reso_upload(self, state):
+        self.reso_upload_widget.setVisible(state == 2)
+        
+    def browse_noa(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload NOA Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.noa_lbl.setText("📄 " + os.path.basename(file_path))
+            self.noa_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.noa_file_path = file_path
+            
+    def browse_reso(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload BAC Resolution (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.reso_lbl.setText("📄 " + os.path.basename(file_path))
+            self.reso_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.reso_file_path = file_path
+            
+    def validate_inputs(self):
+        ref_valid = len(self.ref_input.text().strip()) > 0
+        self.set_field_validation(self.ref_input, ref_valid)
+        return ref_valid
+        
     def submit_data(self):
+        if not self.validate_inputs():
+            self.ref_input.setFocus()
+            return
+            
         bid_ref = self.ref_input.text().strip()
         pr_no = self.pr_input.text().strip() or None
         post_phil = self.philgeps_combo.currentText()
@@ -316,10 +464,6 @@ class AddBidDialog(QDialog):
         bacsec = self.bacsec_date.date().toString("yyyy-MM-dd")
         pcmd = self.pcmd_date.date().toString("yyyy-MM-dd") if self.pcmd_date_check.isChecked() else None
         
-        if not bid_ref:
-            QMessageBox.warning(self, "Validation Error", "Please fill in the Bid Reference No.")
-            return
-            
         if self.bid_data:
             success, result = database_config.update_bid(
                 self.bid_data["id"], bid_ref, bacsec, pcmd,
@@ -336,12 +480,27 @@ class AddBidDialog(QDialog):
             action_name = "recorded"
         
         if success:
+            # Save files
+            if self.noa_file_path and not self.noa_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "NOA", self.noa_file_path)
+            if self.reso_check.isChecked() and self.reso_file_path and not self.reso_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "BAC_Reso", self.reso_file_path)
+            elif not self.reso_check.isChecked():
+                try:
+                    conn = database_config.get_db_connection()
+                    cur = conn.cursor()
+                    cur.execute("DELETE FROM project_documents WHERE project_id = ? AND document_type = 'BAC_Reso'", (self.project_id,))
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+                    
             QMessageBox.information(self, "Success", f"Bidding details successfully {action_name}!")
             self.accept()
         else:
             QMessageBox.critical(self, "Error", f"Failed to save bidding details:\n{result}")
 
-class AddContractDialog(QDialog):
+class AddContractDialog(BaseFormDialog):
     def __init__(self, project_id, bid_id, parent=None, contract_data=None):
         super().__init__(parent)
         self.project_id = project_id
@@ -352,7 +511,6 @@ class AddContractDialog(QDialog):
         else:
             self.setWindowTitle("Phase 3: Add Contract & Supplier Details")
         self.resize(550, 600)
-        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
         self.setup_ui()
         
     def setup_ui(self):
@@ -386,6 +544,7 @@ class AddContractDialog(QDialog):
         self.new_supplier_check = QCheckBox("Supplier not in directory? Check to add new:")
         self.new_supplier_check.setStyleSheet("color: #33ccff; font-weight: bold;")
         self.new_supplier_check.stateChanged.connect(self.toggle_new_supplier_form)
+        self.new_supplier_check.stateChanged.connect(lambda: self.validate_inputs())
         sup_layout.addWidget(self.new_supplier_check)
         
         # New Supplier Form frame (initially collapsed)
@@ -396,6 +555,7 @@ class AddContractDialog(QDialog):
         sf_layout.setSpacing(8)
         
         self.s_name = QLineEdit()
+        self.s_name.textChanged.connect(self.validate_inputs)
         sf_layout.addRow("Supplier Name *:", self.s_name)
         self.s_tin = QLineEdit()
         self.s_tin.setPlaceholderText("e.g. 123-456-789-000")
@@ -424,12 +584,14 @@ class AddContractDialog(QDialog):
         
         self.po_jo_no = QLineEdit()
         self.po_jo_no.setPlaceholderText("e.g. CTR-2026-0002")
+        self.po_jo_no.textChanged.connect(self.validate_inputs)
         con_layout.addRow("PO/JO / Contract No *:", self.po_jo_no)
         
         self.con_amount = QDoubleSpinBox()
         self.con_amount.setRange(0, 999999999.99)
         self.con_amount.setSingleStep(10000.0)
         self.con_amount.setPrefix("₱")
+        self.con_amount.valueChanged.connect(self.validate_inputs)
         con_layout.addRow("Contract Award Amount *:", self.con_amount)
         
         self.f_capacity = QDoubleSpinBox()
@@ -443,6 +605,7 @@ class AddContractDialog(QDialog):
         
         self.contract_date = QDateEdit(QDate.currentDate())
         self.contract_date.setCalendarPopup(True)
+        self.contract_date.dateChanged.connect(self.calculate_end_date)
         con_layout.addRow("Contract Date:", self.contract_date)
         
         self.ntp_date = QDateEdit(QDate.currentDate())
@@ -497,17 +660,17 @@ class AddContractDialog(QDialog):
             self.con_amount.setValue(self.contract_data.get("contract_amount", 0.0))
             self.f_capacity.setValue(self.contract_data.get("financial_capacity_amount", 0.0))
             
-            aw_d = self.contract_data.get("notice_of_award_date", "")
-            if aw_d:
-                self.award_date.setDate(QDate.fromString(aw_d, "yyyy-MM-dd"))
+            a_date = self.contract_data.get("notice_of_award_date", "")
+            if a_date:
+                self.award_date.setDate(QDate.fromString(a_date, "yyyy-MM-dd"))
                 
-            cn_d = self.contract_data.get("contract_date", "")
-            if cn_d:
-                self.contract_date.setDate(QDate.fromString(cn_d, "yyyy-MM-dd"))
+            c_date = self.contract_data.get("contract_date", "")
+            if c_date:
+                self.contract_date.setDate(QDate.fromString(c_date, "yyyy-MM-dd"))
                 
-            nt_d = self.contract_data.get("notice_to_proceed_date", "")
-            if nt_d:
-                self.ntp_date.setDate(QDate.fromString(nt_d, "yyyy-MM-dd"))
+            n_date = self.contract_data.get("notice_to_proceed_date", "")
+            if n_date:
+                self.ntp_date.setDate(QDate.fromString(n_date, "yyyy-MM-dd"))
                 
             self.duration.setValue(self.contract_data.get("contract_duration_days", 30))
             self.calculate_end_date()
@@ -520,10 +683,11 @@ class AddContractDialog(QDialog):
             self.sec_form.setText(self.contract_data.get("performance_security_form", ""))
             self.sec_amount.setValue(self.contract_data.get("performance_security_amount", 0.0))
             
-            sv_d = self.contract_data.get("performance_security_validity", "")
-            if sv_d:
-                self.sec_valid.setDate(QDate.fromString(sv_d, "yyyy-MM-dd"))
+            sv_date = self.contract_data.get("performance_security_validity", "")
+            if sv_date:
+                self.sec_valid.setDate(QDate.fromString(sv_date, "yyyy-MM-dd"))
                 
+        scroll_content.setLayout(scroll_layout)
         scroll.setWidget(scroll_content)
         self.layout.addWidget(scroll)
         
@@ -543,39 +707,59 @@ class AddContractDialog(QDialog):
         btn_layout.addWidget(submit_btn)
         self.layout.addLayout(btn_layout)
         
+        # Initial validation highlight
+        self.validate_inputs()
+        
+    def validate_inputs(self):
+        po_jo_valid = len(self.po_jo_no.text().strip()) > 0
+        con_amount_valid = self.con_amount.value() > 0.0
+        self.set_field_validation(self.po_jo_no, po_jo_valid)
+        self.set_field_validation(self.con_amount, con_amount_valid)
+        
+        sup_valid = True
+        if self.new_supplier_check.isChecked():
+            sup_valid = len(self.s_name.text().strip()) > 0
+            self.set_field_validation(self.s_name, sup_valid)
+        else:
+            self.clear_field_validation(self.s_name)
+            
+        return po_jo_valid and con_amount_valid and sup_valid
+        
     def populate_suppliers(self):
         self.supplier_combo.clear()
-        suppliers = database_config.get_suppliers()
-        for s in suppliers:
-            self.supplier_combo.addItem(s["supplier_name"], s["id"])
+        try:
+            suppliers = database_config.get_suppliers()
+            for s in suppliers:
+                self.supplier_combo.addItem(s["supplier_name"], s["id"])
+        except Exception as e:
+            print(f"Error loading suppliers list: {e}")
             
     def toggle_new_supplier_form(self, state):
-        show = (state == 2)
-        self.supplier_frame.setVisible(show)
-        self.supplier_combo.setEnabled(not show)
+        self.supplier_frame.setVisible(state == 2)
         
     def calculate_end_date(self):
-        ntp = self.ntp_date.date()
-        dur = self.duration.value()
-        expected = ntp.addDays(dur)
+        start = self.contract_date.date()
+        days = self.duration.value()
+        expected = start.addDays(days)
         self.end_date_lbl.setText(expected.toString("yyyy-MM-dd"))
         
     def submit_data(self):
+        if not self.validate_inputs():
+            if not self.po_jo_no.text().strip():
+                self.po_jo_no.setFocus()
+            elif self.con_amount.value() <= 0.0:
+                self.con_amount.setFocus()
+            else:
+                self.s_name.setFocus()
+            return
+            
         po_jo = self.po_jo_no.text().strip()
         amount = self.con_amount.value()
         
-        if not po_jo:
-            QMessageBox.warning(self, "Validation Error", "Please enter the PO/JO / Contract No.")
-            return
-            
         supplier_id = None
         if self.new_supplier_check.isChecked():
             # Add supplier first
             s_name_txt = self.s_name.text().strip()
-            if not s_name_txt:
-                QMessageBox.warning(self, "Validation Error", "Please fill in the Supplier Name.")
-                return
-                
             success, s_res = database_config.add_supplier(
                 s_name_txt, self.s_tin.text().strip(), self.s_address.text().strip(),
                 self.s_contact.text().strip(), self.s_bank_name.text().strip(),
@@ -629,7 +813,7 @@ class AddContractDialog(QDialog):
         else:
             QMessageBox.critical(self, "Error", f"Failed to save contract details:\n{result}")
 
-class AddDeliverableDialog(QDialog):
+class AddDeliverableDialog(BaseFormDialog):
     def __init__(self, contract_id, parent=None, deliverable_data=None):
         super().__init__(parent)
         self.contract_id = contract_id
@@ -639,7 +823,6 @@ class AddDeliverableDialog(QDialog):
         else:
             self.setWindowTitle("Phase 4: Add Deliverable Milestone")
         self.resize(480, 480)
-        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
         self.setup_ui()
         
     def setup_ui(self):
@@ -656,6 +839,7 @@ class AddDeliverableDialog(QDialog):
         
         self.milestone = QLineEdit()
         self.milestone.setPlaceholderText("e.g. Delivery of office tables and partitions")
+        self.milestone.textChanged.connect(self.validate_inputs)
         form.addRow("Milestone Description *:", self.milestone)
         
         self.start_date = QDateEdit(QDate.currentDate())
@@ -782,12 +966,20 @@ class AddDeliverableDialog(QDialog):
         btn_layout.addWidget(submit_btn)
         layout.addLayout(btn_layout)
         
+        # Initial validation highlight
+        self.validate_inputs()
+        
+    def validate_inputs(self):
+        desc_valid = len(self.milestone.text().strip()) > 0
+        self.set_field_validation(self.milestone, desc_valid)
+        return desc_valid
+        
     def submit_data(self):
-        desc = self.milestone.text().strip()
-        if not desc:
-            QMessageBox.warning(self, "Validation Error", "Please fill in the Milestone Description.")
+        if not self.validate_inputs():
+            self.milestone.setFocus()
             return
             
+        desc = self.milestone.text().strip()
         actual = self.actual_date.date().toString("yyyy-MM-dd") if self.actual_date_check.isChecked() else None
         revised = self.revised_date.date().toString("yyyy-MM-dd") if self.revised_date_check.isChecked() else None
         
@@ -820,7 +1012,7 @@ class AddDeliverableDialog(QDialog):
         else:
             QMessageBox.critical(self, "Error", f"Failed to save deliverable:\n{result}")
 
-class AddPaymentDialog(QDialog):
+class AddPaymentDialog(BaseFormDialog):
     def __init__(self, contract_id, contract_data, parent=None, payment_data=None):
         super().__init__(parent)
         self.contract_id = contract_id
@@ -831,7 +1023,6 @@ class AddPaymentDialog(QDialog):
         else:
             self.setWindowTitle("Phase 5: Add Payment Record")
         self.resize(480, 520)
-        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
         self.setup_ui()
         
     def setup_ui(self):
@@ -871,6 +1062,7 @@ class AddPaymentDialog(QDialog):
         c_amt = self.contract_data.get("contract_amount", 0.0)
         self.gross_amt.setValue(c_amt)
         self.gross_amt.valueChanged.connect(self.calculate_disbursement_net)
+        self.gross_amt.valueChanged.connect(self.validate_inputs)
         form.addRow("Gross Payment Amount *:", self.gross_amt)
         
         # Taxes & Retention calculations
@@ -974,6 +1166,14 @@ class AddPaymentDialog(QDialog):
         btn_layout.addWidget(submit_btn)
         layout.addLayout(btn_layout)
         
+        # Initial validation highlight
+        self.validate_inputs()
+        
+    def validate_inputs(self):
+        gross_valid = self.gross_amt.value() > 0.0
+        self.set_field_validation(self.gross_amt, gross_valid)
+        return gross_valid
+        
     def calculate_disbursement_net(self):
         gross = self.gross_amt.value()
         tax_idx = self.tax_type.currentIndex()
@@ -1000,6 +1200,10 @@ class AddPaymentDialog(QDialog):
         self.net_lbl.setText(f"₱{net:,.2f}")
         
     def submit_data(self):
+        if not self.validate_inputs():
+            self.gross_amt.setFocus()
+            return
+            
         gross = self.gross_amt.value()
         deliv_id = self.deliv_combo.currentData()
         
@@ -1040,7 +1244,7 @@ class AddPaymentDialog(QDialog):
         else:
             QMessageBox.critical(self, "Error", f"Failed to save payment record:\n{result}")
 
-class AddWarrantyDialog(QDialog):
+class AddWarrantyDialog(BaseFormDialog):
     def __init__(self, contract_id, parent=None, warranty_data=None):
         super().__init__(parent)
         self.contract_id = contract_id
@@ -1049,8 +1253,7 @@ class AddWarrantyDialog(QDialog):
             self.setWindowTitle("Phase 6: Edit Warranty details")
         else:
             self.setWindowTitle("Phase 6: Add Warranty details")
-        self.resize(440, 360)
-        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
+        self.resize(440, 380)
         self.setup_ui()
         
     def setup_ui(self):
@@ -1082,7 +1285,8 @@ class AddWarrantyDialog(QDialog):
         form.addRow("Calculated Warranty End Date:", self.end_date_lbl)
         
         self.security = QLineEdit("Retention Money (10%, Cash)")
-        form.addRow("Retention Security Form:", self.security)
+        self.security.textChanged.connect(self.validate_inputs)
+        form.addRow("Retention Security Form *:", self.security)
         
         self.status = QComboBox()
         self.status.addItems(["Ongoing", "Released", "Pending Claims", "COA Disallowance Hold"])
@@ -1140,6 +1344,14 @@ class AddWarrantyDialog(QDialog):
         btn_layout.addWidget(submit_btn)
         layout.addLayout(btn_layout)
         
+        # Initial validation highlight
+        self.validate_inputs()
+        
+    def validate_inputs(self):
+        sec_valid = len(self.security.text().strip()) > 0
+        self.set_field_validation(self.security, sec_valid)
+        return sec_valid
+        
     def calculate_end_date(self):
         start = self.start_date.date()
         m = self.months.value()
@@ -1147,6 +1359,10 @@ class AddWarrantyDialog(QDialog):
         self.end_date_lbl.setText(expected.toString("yyyy-MM-dd"))
         
     def submit_data(self):
+        if not self.validate_inputs():
+            self.security.setFocus()
+            return
+            
         end_date = self.end_date_lbl.text()
         rel_date = self.release_date.date().toString("yyyy-MM-dd") if self.release_date_check.isChecked() else None
         coa = 1 if self.coa_claim.isChecked() else 0
@@ -1239,12 +1455,11 @@ class ExportFilterDialog(QDialog):
             "date": self.date_filter.currentText()
         }
 
-class AddSupplierDialog(QDialog):
+class AddSupplierDialog(BaseFormDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Add New Supplier")
-        self.resize(420, 360)
-        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
+        self.resize(420, 380)
         self.setup_ui()
         
     def setup_ui(self):
@@ -1260,7 +1475,8 @@ class AddSupplierDialog(QDialog):
         
         self.name_input = QLineEdit()
         self.name_input.setPlaceholderText("e.g., ACME Corporate Solutions Inc.")
-        form.addRow("Supplier Name:", self.name_input)
+        self.name_input.textChanged.connect(self.validate_inputs)
+        form.addRow("Supplier Name *:", self.name_input)
         
         self.tin_input = QLineEdit()
         self.tin_input.setPlaceholderText("e.g., 123-456-789-000")
@@ -1299,7 +1515,19 @@ class AddSupplierDialog(QDialog):
         btn_layout.addWidget(save_btn)
         layout.addLayout(btn_layout)
         
+        # Initial validation highlight
+        self.validate_inputs()
+        
+    def validate_inputs(self):
+        name_valid = len(self.name_input.text().strip()) > 0
+        self.set_field_validation(self.name_input, name_valid)
+        return name_valid
+        
     def submit_data(self):
+        if not self.validate_inputs():
+            self.name_input.setFocus()
+            return
+            
         name = self.name_input.text().strip()
         tin = self.tin_input.text().strip()
         address = self.addr_input.text().strip()
@@ -1307,10 +1535,6 @@ class AddSupplierDialog(QDialog):
         branch = self.branch_input.text().strip()
         acct = self.acct_input.text().strip()
         
-        if not name:
-            QMessageBox.warning(self, "Validation Error", "Supplier Name is required.")
-            return
-            
         success, result = database_config.add_supplier(name, tin, address, contact, branch, acct)
         if success:
             QMessageBox.information(self, "Success", "Supplier details successfully added to directory registry!")

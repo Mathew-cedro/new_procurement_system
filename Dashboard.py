@@ -16,7 +16,6 @@ import Cardsystem
 import excel_export
 import form_dialogs
 
-
 class StatCard(QFrame):
     """A custom widget representing a metric card."""
     def __init__(self, title, value, color_hex):
@@ -285,27 +284,27 @@ class Dashboard(QMainWindow):
         analytics_layout = QHBoxLayout()
         analytics_layout.setSpacing(20)
         
-        # Panel A: Critical Timeline Alerts
-        self.alerts_panel = QFrame()
-        self.alerts_panel.setObjectName("AlertsPanel")
-        self.alerts_panel.setStyleSheet("""
-            #AlertsPanel {
+        # Panel A: Project Timeline Tracker & Schedule Alerts
+        self.timeline_panel = QFrame()
+        self.timeline_panel.setObjectName("TimelinePanel")
+        self.timeline_panel.setStyleSheet("""
+            #TimelinePanel {
                 background-color: #2b2b36; border-radius: 8px; border: 1px solid #3a3a4a;
             }
         """)
-        alerts_layout = QVBoxLayout(self.alerts_panel)
-        alerts_layout.setContentsMargins(15, 15, 15, 15)
+        timeline_p_layout = QVBoxLayout(self.timeline_panel)
+        timeline_p_layout.setContentsMargins(15, 15, 15, 15)
         
-        alerts_title = QLabel("📢 Critical Timeline & Action Alerts")
-        alerts_title.setStyleSheet("color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 8px;")
-        alerts_layout.addWidget(alerts_title)
+        timeline_title = QLabel("📅 Project Schedule & Action Tracker")
+        timeline_title.setStyleSheet("color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 8px;")
+        timeline_p_layout.addWidget(timeline_title)
         
-        self.alerts_list_layout = QVBoxLayout()
-        self.alerts_list_layout.setSpacing(6)
-        alerts_layout.addLayout(self.alerts_list_layout)
-        alerts_layout.addStretch()
+        self.timeline_list_layout = QVBoxLayout()
+        self.timeline_list_layout.setSpacing(6)
+        timeline_p_layout.addLayout(self.timeline_list_layout)
+        timeline_p_layout.addStretch()
         
-        analytics_layout.addWidget(self.alerts_panel, stretch=1)
+        analytics_layout.addWidget(self.timeline_panel, stretch=1)
         
         # Panel B: Financial Savings & Contractor Analytics
         self.stats_panel = QFrame()
@@ -713,14 +712,6 @@ class Dashboard(QMainWindow):
             QMessageBox.critical(self, "Database Error", f"Failed to refresh dashboard data: {e}")
 
     def update_dashboard_analytics(self):
-        # Clear previous alerts
-        while self.alerts_list_layout.count():
-            child = self.alerts_list_layout.takeAt(0)
-            if child:
-                w = child.widget()
-                if w:
-                    w.deleteLater()
-                
         # Clear previous leaderboard
         while self.leaderboard_layout.count():
             child = self.leaderboard_layout.takeAt(0)
@@ -728,23 +719,17 @@ class Dashboard(QMainWindow):
                 w = child.widget()
                 if w:
                     w.deleteLater()
+                    
+        # Clear previous timeline list
+        while self.timeline_list_layout.count():
+            child = self.timeline_list_layout.takeAt(0)
+            if child:
+                w = child.widget()
+                if w:
+                    w.deleteLater()
                 
         try:
             data = database_config.get_dashboard_analytics()
-            
-            # Populate alerts list
-            alerts = data.get("alerts", [])
-            if not alerts:
-                ok_lbl = QLabel("✅ All project timelines are operating on track!")
-                ok_lbl.setStyleSheet("color: #2ecc71; font-size: 12px; font-weight: bold; border: none; background: transparent;")
-                self.alerts_list_layout.addWidget(ok_lbl)
-            else:
-                for alert in alerts:
-                    color = "#ff6666" if alert["type"] == "error" else ("#ffaa00" if alert["type"] == "warning" else "#33ccff")
-                    lbl = QLabel(alert["text"])
-                    lbl.setWordWrap(True)
-                    lbl.setStyleSheet(f"color: {color}; font-size: 12px; border: none; background: transparent;")
-                    self.alerts_list_layout.addWidget(lbl)
                     
             # Populate financial summaries
             self.savings_lbl.setText(f"Savings Realized: ₱{data.get('savings_amount', 0.0):,.2f} ({data.get('savings_percent', 0.0):.2f}%)")
@@ -761,6 +746,37 @@ class Dashboard(QMainWindow):
                     lbl = QLabel(f"{idx}. {sup['supplier_name']} — {sup['contract_count']} contracts (₱{sup['total_value']:,.2f})")
                     lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; border: none; background: transparent;")
                     self.leaderboard_layout.addWidget(lbl)
+                    
+            # Populate timeline progress schedules
+            events = database_config.get_upcoming_timeline_events()
+            if not events:
+                empty_lbl = QLabel("No upcoming schedules or deadlines found.")
+                empty_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; font-style: italic; border: none; background: transparent;")
+                self.timeline_list_layout.addWidget(empty_lbl)
+            else:
+                # Display up to 5 timeline events
+                current_date = QDate.currentDate()
+                for event in events[:5]:
+                    evt_date = QDate.fromString(event["date"], "yyyy-MM-dd")
+                    days = current_date.daysTo(evt_date)
+                    if days < 0:
+                        days_str = f"Overdue by {abs(days)} days"
+                        badge_color = "#ff4d4d"
+                    elif days == 0:
+                        days_str = "Due today!"
+                        badge_color = "#ffaa00"
+                    elif days == 1:
+                        days_str = "Due tomorrow"
+                        badge_color = "#ffaa00"
+                    else:
+                        days_str = f"In {days} days"
+                        badge_color = "#00ffcc"
+                        
+                    lbl_text = f"📅 <b>{event['date']}</b> — <font color='#00ffcc'>{event['proj_id']}</font><br>{event['event_name']} (<font color='{badge_color}'>{days_str}</font>)"
+                    lbl = QLabel(lbl_text)
+                    lbl.setWordWrap(True)
+                    lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; border: none; background: transparent; padding-bottom: 4px;")
+                    self.timeline_list_layout.addWidget(lbl)
                     
         except Exception as e:
             print(f"Error loading dashboard analytics components: {e}")
@@ -1017,7 +1033,7 @@ class Dashboard(QMainWindow):
         )
         if reply == QMessageBox.Yes:
             try:
-                database_config.seed()
+                database_config.create_project()
                 self.refresh_all_data()
                 QMessageBox.information(self, "Success", "Database has been successfully reset to sample data.")
             except Exception as e:
@@ -1048,8 +1064,24 @@ class Dashboard(QMainWindow):
                 
         QApplication.clipboard().setText(copied_text.strip())
 
+def clean_temp_files():
+    import tempfile
+    import glob
+    try:
+        temp_dir = tempfile.gettempdir()
+        pattern = os.path.join(temp_dir, "procurement_temp_*")
+        for f in glob.glob(pattern):
+            try:
+                os.unlink(f)
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"Error cleaning temp files: {e}")
+
 if __name__ == "__main__":
+    clean_temp_files()
     app = QApplication(sys.argv)
+    app.aboutToQuit.connect(clean_temp_files)
     window = Dashboard()
     window.show()
     sys.exit(app.exec())

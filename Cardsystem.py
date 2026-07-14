@@ -3,8 +3,9 @@ from PySide6.QtWidgets import (
     QDialog, QScrollArea, QGroupBox, QGridLayout, QPushButton,
     QFileDialog, QMessageBox
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QCursor
+from PySide6.QtCore import Qt, Signal, QUrl
+from PySide6.QtGui import QCursor, QDesktopServices
+import os
 
 class ProjectCardWidget(QFrame):
     clicked = Signal(int)  # Emits project_id when clicked
@@ -235,7 +236,7 @@ class ProjectDetailDialog(QDialog):
             return
             
         self.setWindowTitle(f"Project Timeline - {self.project_data.get('proj_id_no', 'N/A')}")
-        self.resize(880, 720)
+        self.resize(1000, 820)
         self.setStyleSheet("background-color: #1e1e24; color: #ffffff;")
         
         # Main Layout
@@ -257,22 +258,119 @@ class ProjectDetailDialog(QDialog):
         self.scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
         self.dialog_layout.addWidget(self.scroll)
         
-        # Close Button
+        # Bottom Button Row Layout
+        btn_row_layout = QHBoxLayout()
+        
+        self.delete_btn = QPushButton("🗑️ Delete Project")
+        self.delete_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #5c1d1d; color: #ff9999;
+                font-weight: bold; border-radius: 5px; padding: 10px 20px;
+                border: 1px solid #8c2d2d; font-size: 13px;
+            }
+            QPushButton:hover { background-color: #7c2d2d; color: #ffffff; }
+        """)
+        self.delete_btn.clicked.connect(self.confirm_delete_project)
+        btn_row_layout.addWidget(self.delete_btn)
+        
+        btn_row_layout.addStretch()
+        
         self.close_btn = QPushButton("Close")
         self.close_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3a3a4a; color: #ffffff;
-                font-weight: bold; border-radius: 5px; padding: 10px;
+                font-weight: bold; border-radius: 5px; padding: 10px 20px;
                 border: 1px solid #5a5a6a; font-size: 13px;
             }
             QPushButton:hover { background-color: #4a4a5a; }
         """)
         self.close_btn.clicked.connect(self.accept)
-        self.dialog_layout.addWidget(self.close_btn)
+        btn_row_layout.addWidget(self.close_btn)
+        
+        self.dialog_layout.addLayout(btn_row_layout)
         
         self.build_timeline()
 
     def build_timeline(self):
+        project_docs = {}
+        for doc in self.project_data.get("documents", []):
+            project_docs[doc["document_type"]] = doc.get("file_reference")
+
+        def open_uploaded_document(doc_type, relative_path):
+            if not relative_path:
+                return
+            try:
+                import tempfile
+                import shutil
+                import database_config
+                
+                # Fetch BLOB from database
+                conn = database_config.get_db_connection()
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT file_content, file_reference FROM project_documents
+                    WHERE project_id = ? AND document_type = ?
+                """, (self.project_id, doc_type))
+                row = cur.fetchone()
+                conn.close()
+                
+                if row and row["file_content"]:
+                    content = row["file_content"]
+                    ref_name = row["file_reference"] or relative_path
+                    suffix = os.path.splitext(ref_name)[1] or ".pdf"
+                    
+                    # Write to a deterministic temporary file path
+                    temp_dir = tempfile.gettempdir()
+                    temp_filename = f"procurement_temp_proj_{self.project_id}_{doc_type}{suffix}"
+                    temp_path = os.path.normpath(os.path.join(temp_dir, temp_filename))
+                    
+                    with open(temp_path, "wb") as tmp_f:
+                        tmp_f.write(content)
+                        
+                    if hasattr(os, "startfile"):
+                        os.startfile(temp_path)
+                    else:
+                        QDesktopServices.openUrl(QUrl.fromLocalFile(temp_path))
+                else:
+                    # Fallback to filesystem if BLOB is not yet set
+                    base_dir = os.path.dirname(os.path.abspath(__file__))
+                    full_path = os.path.normpath(os.path.join(base_dir, relative_path))
+                    if os.path.exists(full_path):
+                        if hasattr(os, "startfile"):
+                            os.startfile(full_path)
+                        else:
+                            QDesktopServices.openUrl(QUrl.fromLocalFile(full_path))
+                    else:
+                        QMessageBox.warning(self, "File Not Found", f"The document file could not be found in DB or at:\n{full_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to load document: {e}")
+
+        def make_doc_btn(doc_type, display_name):
+            file_ref = project_docs.get(doc_type)
+            if file_ref:
+                btn = QPushButton(f"📄 Open {display_name}")
+                btn.setStyleSheet("""
+                    QPushButton {
+                        background-color: #1a2d3c;
+                        color: #33ccff;
+                        font-weight: bold;
+                        border: 1px solid #33ccff;
+                        border-radius: 4px;
+                        padding: 4px 8px;
+                        font-size: 12px;
+                    }
+                    QPushButton:hover {
+                        background-color: #33ccff;
+                        color: #13131a;
+                    }
+                """)
+                btn.clicked.connect(lambda checked=False, dtype=doc_type, path=file_ref: open_uploaded_document(dtype, path))
+                return btn
+            else:
+                lbl = QLabel(f"<i>No {display_name} Uploaded</i>")
+                lbl.setStyleSheet("color: #aaaaaa; font-size: 12px; border: none; background: transparent;")
+                return lbl
+
         # Clear header layout
         while self.header_layout.count():
             child = self.header_layout.takeAt(0)
@@ -281,7 +379,7 @@ class ProjectDetailDialog(QDialog):
                 
         # Rebuild header contents
         title_label = QLabel(self.project_data.get("project_name", "N/A"))
-        title_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #00ffcc; border: none; background: transparent;")
+        title_label.setStyleSheet("font-size: 22px; font-weight: bold; color: #00ffcc; border: none; background: transparent;")
         title_label.setWordWrap(True)
         self.header_layout.addWidget(title_label)
         
@@ -289,13 +387,13 @@ class ProjectDetailDialog(QDialog):
         meta_layout.setSpacing(10)
         
         id_lbl = QLabel(f"ID: {self.project_data.get('proj_id_no', 'N/A')}")
-        id_lbl.setStyleSheet("color: #00ffcc; font-size: 11px; font-weight: bold; background-color: #1a332d; border-radius: 4px; padding: 4px 10px; border: none;")
+        id_lbl.setStyleSheet("color: #00ffcc; font-size: 12px; font-weight: bold; background-color: #1a332d; border-radius: 4px; padding: 4px 10px; border: none;")
         
         div_lbl = QLabel(f"Division: {self.project_data.get('bureau_division_name', 'N/A')}")
-        div_lbl.setStyleSheet("color: #33ccff; font-size: 11px; font-weight: bold; background-color: #1a2d3c; border-radius: 4px; padding: 4px 10px; border: none;")
+        div_lbl.setStyleSheet("color: #33ccff; font-size: 12px; font-weight: bold; background-color: #1a2d3c; border-radius: 4px; padding: 4px 10px; border: none;")
         
         focal_lbl = QLabel(f"Focal: {self.project_data.get('focal_person', 'N/A')}")
-        focal_lbl.setStyleSheet("color: #ffffff; font-size: 11px; font-weight: bold; background-color: #2b2b36; border-radius: 4px; padding: 4px 10px; border: none;")
+        focal_lbl.setStyleSheet("color: #ffffff; font-size: 12px; font-weight: bold; background-color: #2b2b36; border-radius: 4px; padding: 4px 10px; border: none;")
         
         meta_layout.addWidget(id_lbl)
         meta_layout.addWidget(div_lbl)
@@ -311,7 +409,7 @@ class ProjectDetailDialog(QDialog):
         timeline_layout.setContentsMargins(0, 0, 10, 0)
         
         # Helper to set word wrap on Grid/Form QLabels
-        def wrap_lbl(text, style="color: #ffffff; font-size: 12px; border: none; background: transparent;"):
+        def wrap_lbl(text, style="color: #ffffff; font-size: 13px; border: none; background: transparent;"):
             lbl = QLabel(text)
             lbl.setStyleSheet(style)
             lbl.setWordWrap(True)
@@ -339,13 +437,19 @@ class ProjectDetailDialog(QDialog):
         edit_plan_btn.clicked.connect(self.edit_project_details)
         planning_layout.addWidget(edit_plan_btn, 0, 4, 1, 1, Qt.AlignRight | Qt.AlignTop)
         
+        # Add SARO view row
+        planning_layout.addWidget(wrap_lbl("<b>SARO Number:</b>"), 2, 0)
+        planning_layout.addWidget(wrap_lbl(self.project_data.get("saro_number", "N/A")), 2, 1)
+        planning_layout.addWidget(wrap_lbl("<b>SARO Document:</b>"), 2, 2)
+        planning_layout.addWidget(make_doc_btn("SARO", "SARO PDF"), 2, 3)
+        
         budgets = self.project_data.get("budgets", [])
         if budgets:
-            planning_layout.addWidget(wrap_lbl("<b>Budget Lines:</b>"), 2, 0)
+            planning_layout.addWidget(wrap_lbl("<b>Budget Lines:</b>"), 3, 0)
             b_info = []
             for b in budgets:
                 b_info.append(f"{b.get('budget_type', 'N/A')} - App: ₱{b.get('app_amount', 0.0):,.2f} | ORS: ₱{b.get('ors_amount', 0.0):,.2f} ({b.get('ors_serial_no', 'N/A')})")
-            planning_layout.addWidget(wrap_lbl("\n".join(b_info)), 2, 1, 1, 3)
+            planning_layout.addWidget(wrap_lbl("\n".join(b_info)), 3, 1, 1, 3)
             
         timeline_layout.addWidget(planning_box)
         
@@ -361,8 +465,12 @@ class ProjectDetailDialog(QDialog):
             bids_layout.addWidget(wrap_lbl("<b>Documents Prepared:</b>"), 0, 0)
             doc_info = []
             for d in docs:
-                doc_info.append(f"📄 {d.get('document_type', 'N/A')} Ref: {d.get('file_reference', 'N/A')} Prepared: {d.get('date_prepared', 'N/A')} by {d.get('prepared_by', 'N/A')}")
-            bids_layout.addWidget(wrap_lbl("\n".join(doc_info)), 0, 1, 1, 3)
+                if d.get("document_type") not in ["SARO", "PPMP", "RQ", "MS", "TS", "PO_Phase2", "RFQ_Phase3", "Abstract", "PO_Phase6"]:
+                    doc_info.append(f"📄 {d.get('document_type', 'N/A')} Ref: {d.get('file_reference', 'N/A')} Prepared: {d.get('date_prepared', 'N/A')} by {d.get('prepared_by', 'N/A')}")
+            if doc_info:
+                bids_layout.addWidget(wrap_lbl("\n".join(doc_info)), 0, 1, 1, 3)
+            else:
+                bids_layout.addWidget(wrap_lbl("Use the uploads below to open PDF documents."), 0, 1, 1, 3)
         else:
             bids_layout.addWidget(wrap_lbl("<b>Documents:</b>"), 0, 0)
             bids_layout.addWidget(wrap_lbl("No documents recorded yet."), 0, 1, 1, 3)
@@ -395,7 +503,23 @@ class ProjectDetailDialog(QDialog):
             reso_val = b.get('bac_resolution_no') or "N/A (Using Notice of Award)"
             bids_layout.addWidget(wrap_lbl(reso_val), 3, 3)
             
-            edit_bid_btn = QPushButton("✏️ Edit Bidding Details")
+            # Phase 2 Documents view layout row
+            bids_layout.addWidget(wrap_lbl("<b>Phase 2 Documents:</b>"), 4, 0)
+            p2_docs_layout = QHBoxLayout()
+            p2_docs_layout.setSpacing(6)
+            p2_docs_layout.addWidget(make_doc_btn("PPMP", "PPMP"))
+            p2_docs_layout.addWidget(make_doc_btn("RQ", "RQ"))
+            p2_docs_layout.addWidget(make_doc_btn("MS", "Market Scoping"))
+            p2_docs_layout.addWidget(make_doc_btn("TS", "Tech Specs/TOR"))
+            p2_docs_layout.addWidget(make_doc_btn("PO_Phase2", "PO"))
+            p2_docs_layout.addWidget(make_doc_btn("NOA", "NOA"))
+            p2_docs_layout.addWidget(make_doc_btn("BAC_Reso", "BAC Reso"))
+            
+            p2_docs_widget = QWidget()
+            p2_docs_widget.setLayout(p2_docs_layout)
+            bids_layout.addWidget(p2_docs_widget, 4, 1, 1, 3)
+            
+            edit_bid_btn = QPushButton("✏️ Edit Details")
             edit_bid_btn.setStyleSheet(self.btn_edit_style())
             edit_bid_btn.clicked.connect(lambda checked=False, b_data=b: self.edit_bidding_details(b_data))
             bids_layout.addWidget(edit_bid_btn, 0, 4, 1, 1, Qt.AlignRight | Qt.AlignTop)
@@ -451,12 +575,17 @@ class ProjectDetailDialog(QDialog):
             contract_layout.addWidget(wrap_lbl(f"₱{sec_amount:,.2f}"), 5, 3)
             
             amends = c.get("amendments", [])
+            last_row = 6
             if amends:
                 contract_layout.addWidget(wrap_lbl("<b>Amendments:</b>"), 6, 0)
                 amend_info = []
                 for a in amends:
                     amend_info.append(f"🔄 {a.get('amendment_type', 'N/A')} | Variation: ₱{a.get('variation_order_amount', 0.0):,.2f} | Extension: {a.get('extension_days', 0)} days | Remarks: {a.get('remarks', 'None')}")
                 contract_layout.addWidget(wrap_lbl("\n".join(amend_info)), 6, 1, 1, 3)
+                last_row = 7
+                
+            contract_layout.addWidget(wrap_lbl("<b>RFQ Document:</b>"), last_row, 0)
+            contract_layout.addWidget(make_doc_btn("RFQ_Phase3", "RFQ Document"), last_row, 1, 1, 3)
                 
             edit_con_btn = QPushButton("✏️ Edit Details")
             edit_con_btn.setStyleSheet(self.btn_edit_style())
@@ -482,6 +611,15 @@ class ProjectDetailDialog(QDialog):
         deliv_layout = QVBoxLayout(deliv_box)
         deliv_layout.setContentsMargins(15, 20, 15, 15)
         deliv_layout.setSpacing(10)
+        
+        # Add Abstract of Quotations view row
+        h_abs = QHBoxLayout()
+        h_abs.addWidget(wrap_lbl("<b>Abstract of Quotations:</b>"))
+        h_abs.addWidget(make_doc_btn("Abstract", "Abstract of Quotations"))
+        h_abs.addStretch()
+        abs_widget = QWidget()
+        abs_widget.setLayout(h_abs)
+        deliv_layout.addWidget(abs_widget)
         
         has_deliv = False
         if contracts:
@@ -617,6 +755,10 @@ class ProjectDetailDialog(QDialog):
                     coa_claims = "Yes" if w.get("with_petition_for_coa_claims") else "No"
                     war_layout.addWidget(wrap_lbl(coa_claims), 2, 3)
                     
+                    # Purchase Order / Revision document row in Phase 6
+                    war_layout.addWidget(wrap_lbl("<b>Purchase Order Doc:</b>"), 3, 0)
+                    war_layout.addWidget(make_doc_btn("PO_Phase6", "Purchase Order (Phase 6)"), 3, 1, 1, 3)
+                    
                     edit_war_btn = QPushButton("✏️ Edit Details")
                     edit_war_btn.setStyleSheet(self.btn_edit_style())
                     edit_war_btn.clicked.connect(lambda checked=False, w_data=w: self.edit_warranty_details(w_data))
@@ -720,12 +862,25 @@ class ProjectDetailDialog(QDialog):
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
-    def edit_warranty_details(self, warranty_data):
-        import form_dialogs
-        dialog = form_dialogs.AddWarrantyDialog(warranty_data.get("contract_id"), self, warranty_data)
-        if dialog.exec() == QDialog.Accepted:
-            self.refresh_data()
-
+    def confirm_delete_project(self):
+        proj_name = self.project_data.get("project_name", "N/A")
+        proj_id = self.project_data.get("proj_id_no", "N/A")
+        reply = QMessageBox.question(
+            self, "Confirm Delete Project",
+            f"Are you sure you want to permanently delete project {proj_id}?\n\n"
+            f"Name: {proj_name}\n\n"
+            "This action cannot be undone and will delete all associated bids, contracts, deliverables, payments, and warranties.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            success, error = database_config.delete_project(self.project_id)
+            if success:
+                QMessageBox.information(self, "Deleted", f"Project {proj_id} has been successfully deleted.")
+                if self.parent() and hasattr(self.parent(), "refresh_all_data"):
+                    self.parent().refresh_all_data()
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to delete project: {error}")
 
     def btn_edit_style(self):
         return """
@@ -736,7 +891,7 @@ class ProjectDetailDialog(QDialog):
                 border-radius: 4px;
                 padding: 4px 10px;
                 border: 1px solid #5a5a6a;
-                font-size: 11px;
+                font-size: 12px;
             }
             QPushButton:hover {
                 background-color: #4a4a5a;
@@ -752,7 +907,7 @@ class ProjectDetailDialog(QDialog):
                 margin-top: 15px;
                 font-weight: bold;
                 color: #00ffcc;
-                font-size: 13px;
+                font-size: 15px;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
@@ -762,6 +917,6 @@ class ProjectDetailDialog(QDialog):
             }
             QLabel {
                 color: #ffffff;
-                font-size: 11px;
+                font-size: 13px;
             }
         """

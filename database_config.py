@@ -117,6 +117,33 @@ def check_and_update_schema(conn):
             cur.execute(f"ALTER TABLE bids ADD COLUMN {col} {col_type}")
         except sqlite3.OperationalError:
             pass
+            
+    # Add BLOB column to project_documents table
+    try:
+        cur.execute("ALTER TABLE project_documents ADD COLUMN file_content BLOB")
+    except sqlite3.OperationalError:
+        pass
+        
+    # Perform Migration of physical PDF documents to BLOBs
+    try:
+        cur.execute("SELECT id, file_reference, file_content FROM project_documents WHERE file_reference IS NOT NULL")
+        rows = cur.fetchall()
+        
+        base_dir = Path(__file__).parent
+        for doc_id, ref, blob in rows:
+            if not blob and ref:
+                file_path = base_dir / ref
+                if file_path.exists():
+                    try:
+                        with open(file_path, "rb") as f:
+                            data = f.read()
+                        cur.execute("UPDATE project_documents SET file_content = ? WHERE id = ?", (data, doc_id))
+                        print(f"Migrated physical file {ref} to SQLite BLOB!")
+                    except Exception as e:
+                        print(f"Error migrating file {ref}: {e}")
+        conn.commit()
+    except Exception as e:
+        print(f"Migration error: {e}")
 
 def get_db_connection():
     db_file = Path(__file__).parent / DB_PATH
@@ -238,18 +265,18 @@ def get_project_detail(project_id):
     conn.close()
     return project
 
-def create_project(proj_id_no, project_name, bureau_division_name, focal_person, 
+def create_project(proj_id_no, project_name, saro_number, bureau_division_name, focal_person, 
                    end_user_contact_details, mode_of_procurement, abc_amount, 
                    source_of_funds, fund_source, app_cycle):
     conn = get_db_connection()
     cur = conn.cursor()
     try:
         cur.execute("""
-            INSERT INTO projects (proj_id_no, project_name, bureau_division_name, focal_person, 
+            INSERT INTO projects (proj_id_no, project_name, saro_number, bureau_division_name, focal_person, 
                                   end_user_contact_details, mode_of_procurement, abc_amount, 
                                   source_of_funds, fund_source, app_cycle, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Initiated')
-        """, (proj_id_no, project_name, bureau_division_name, focal_person, 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Initiated')
+        """, (proj_id_no, project_name, saro_number, bureau_division_name, focal_person, 
               end_user_contact_details, mode_of_procurement, abc_amount, 
               source_of_funds, fund_source, app_cycle))
         project_id = cur.lastrowid
@@ -447,7 +474,7 @@ def add_warranty(contract_id, start_of_warranty_period, warranty_retention_perio
         conn.close()
 
 
-def update_project(project_id, proj_id_no, project_name, bureau_division_name, focal_person, 
+def update_project(project_id, proj_id_no, project_name, saro_number, bureau_division_name, focal_person, 
                    end_user_contact_details, mode_of_procurement, abc_amount, 
                    source_of_funds, fund_source, app_cycle):
     conn = get_db_connection()
@@ -455,11 +482,11 @@ def update_project(project_id, proj_id_no, project_name, bureau_division_name, f
     try:
         cur.execute("""
             UPDATE projects 
-            SET proj_id_no = ?, project_name = ?, bureau_division_name = ?, focal_person = ?, 
+            SET proj_id_no = ?, project_name = ?, saro_number = ?, bureau_division_name = ?, focal_person = ?, 
                 end_user_contact_details = ?, mode_of_procurement = ?, abc_amount = ?, 
                 source_of_funds = ?, fund_source = ?, app_cycle = ?
             WHERE id = ?
-        """, (proj_id_no, project_name, bureau_division_name, focal_person, 
+        """, (proj_id_no, project_name, saro_number, bureau_division_name, focal_person, 
               end_user_contact_details, mode_of_procurement, abc_amount, 
               source_of_funds, fund_source, app_cycle, project_id))
         
@@ -793,6 +820,159 @@ def add_supplier(name, tin, address, contact, branch, account_no):
         return False, str(e)
     finally:
         conn.close()
+
+def generate_next_project_id():
+    import datetime
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM projects")
+        count = cur.fetchone()[0] or 0
+        conn.close()
+    except Exception:
+        count = 0
+    year = datetime.datetime.now().year
+    return f"PRJ-{year}-{count+1:04d}"
+
+def save_project_document(project_id, document_type, file_path):
+    if not file_path:
+        return True, None
+    
+    import shutil
+    from pathlib import Path
+    
+    try:
+        # Read the file content as binary BLOB
+        with open(file_path, "rb") as f:
+            file_data = f.read()
+            
+        dest_dir = Path(__file__).parent / "uploaded_documents"
+        dest_dir.mkdir(exist_ok=True)
+        
+        src_path = Path(file_path)
+        filename = f"proj_{project_id}_{document_type}{src_path.suffix}"
+        dest_path = dest_dir / filename
+        shutil.copy(file_path, dest_path)
+        
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("""
+            SELECT id FROM project_documents 
+            WHERE project_id = ? AND document_type = ?
+        """, (project_id, document_type))
+        row = cur.fetchone()
+        
+        rel_path = f"uploaded_documents/{filename}"
+        
+        if row:
+            cur.execute("""
+                UPDATE project_documents 
+                SET file_reference = ?, file_content = ?, date_prepared = date('now')
+                WHERE id = ?
+            """, (rel_path, file_data, row[0]))
+        else:
+            cur.execute("""
+                INSERT INTO project_documents (project_id, document_type, file_reference, file_content, date_prepared, prepared_by)
+                VALUES (?, ?, ?, ?, date('now'), 'System')
+            """, (project_id, document_type, rel_path, file_data))
+            
+        conn.commit()
+        conn.close()
+        return True, rel_path
+    except Exception as e:
+        return False, str(e)
+
+def delete_project(project_id):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+        conn.commit()
+        return True, None
+    except Exception as e:
+        return False, str(e)
+    finally:
+        conn.close()
+
+def get_upcoming_timeline_events():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    events = []
+    
+    # 1. NTP Dates
+    cur.execute("""
+        SELECT p.proj_id_no, p.project_name, c.notice_to_proceed_date 
+        FROM contracts c
+        JOIN projects p ON c.project_id = p.id
+        WHERE c.notice_to_proceed_date IS NOT NULL AND c.notice_to_proceed_date != ''
+    """)
+    for row in cur.fetchall():
+        events.append({
+            "proj_id": row[0],
+            "project_name": row[1],
+            "event_name": "Notice to Proceed (NTP)",
+            "date": row[2],
+            "type": "ntp"
+        })
+        
+    # 2. Deliverables Expected Delivery
+    cur.execute("""
+        SELECT p.proj_id_no, p.project_name, d.milestone_deliverable, 
+               COALESCE(d.revised_delivery_date, d.original_expected_delivery_date) as deliv_date
+        FROM deliverables d
+        JOIN contracts c ON d.contract_id = c.id
+        JOIN projects p ON c.project_id = p.id
+        WHERE deliv_date IS NOT NULL AND deliv_date != '' AND d.actual_delivery_date IS NULL
+    """)
+    for row in cur.fetchall():
+        events.append({
+            "proj_id": row[0],
+            "project_name": row[1],
+            "event_name": f"Delivery: {row[2][:30]}...",
+            "date": row[3],
+            "type": "delivery"
+        })
+        
+    # 3. Payments Due Dates
+    cur.execute("""
+        SELECT p.proj_id_no, p.project_name, pm.types_of_payment, pm.due_for_submission
+        FROM payments pm
+        JOIN contracts c ON pm.contract_id = c.id
+        JOIN projects p ON c.project_id = p.id
+        WHERE pm.due_for_submission IS NOT NULL AND pm.due_for_submission != '' AND pm.status_of_payment_documents != 'Complete'
+    """)
+    for row in cur.fetchall():
+        events.append({
+            "proj_id": row[0],
+            "project_name": row[1],
+            "event_name": f"Payment: {row[2]}",
+            "date": row[3],
+            "type": "payment"
+        })
+        
+    # 4. Warranty Expiry Dates
+    cur.execute("""
+        SELECT p.proj_id_no, p.project_name, w.end_date_of_warranty_period
+        FROM warranties w
+        JOIN contracts c ON w.contract_id = c.id
+        JOIN projects p ON c.project_id = p.id
+        WHERE w.end_date_of_warranty_period IS NOT NULL AND w.end_date_of_warranty_period != '' AND w.retention_period_warranty_status = 'Ongoing'
+    """)
+    for row in cur.fetchall():
+        events.append({
+            "proj_id": row[0],
+            "project_name": row[1],
+            "event_name": "Warranty Expiration",
+            "date": row[2],
+            "type": "warranty"
+        })
+        
+    conn.close()
+    
+    # Sort events by date ascending (chronological order)
+    events.sort(key=lambda x: x["date"])
+    return events
 
 if __name__ == "__main__":
     seed()
