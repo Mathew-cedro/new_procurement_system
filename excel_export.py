@@ -9,8 +9,10 @@ cat_colors = {
     # Project Status
     "initiated": PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid"),  # Light Blue
     "bidding": PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid"),    # Light Yellow
+    "planning & bidding": PatternFill(start_color="FFF2CC", end_color="FFF2CC", fill_type="solid"),  # Light Yellow
     "contract awarded": PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"),  # Light Gray
     "delivering": PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"),  # Light Peach/Orange
+    "deliveries & payments": PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid"),  # Light Peach
     "under warranty": PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid"),  # Light Green
     
     # Mode of Procurement
@@ -102,7 +104,7 @@ def create_formatted_sheet(sheet, headers, rows):
                     cell.font = Font(name="Calibri", size=10, color="0563C1", underline="single")
                 else:
                     cell.value = "—"
-            elif "(₱)" in h_name or "Allocation" in h_name or "Amount" in h_name or "Gross" in h_name or "Net" in h_name:
+            elif "(₱)" in h_name or "Allocation" in h_name or "Amount" in h_name or "Gross" in h_name or "Net" in h_name or "Savings" in h_name or "Price" in h_name:
                 cell.alignment = right_align
                 if val is not None:
                     try:
@@ -131,6 +133,29 @@ def create_formatted_sheet(sheet, headers, rows):
             max_len = max(max_len, len(val))
         sheet.column_dimensions[col_letter].width = max(max_len + 4, 12)
 
+def get_base_query():
+    return """
+        SELECT 
+            p.project_id, -- index 0
+            p.project_id, p.project_name, p.bureau_division, p.focal_person, p.mode_of_procurement, p.approved_budget_abc, p.status,
+            'MOOE' AS budget_type, p.approved_budget_abc AS app_amount, c.contract_amount AS ors_amount, 
+            CASE WHEN c.contract_id IS NOT NULL THEN 'ORS-' || c.contract_id ELSE NULL END AS ors_serial_no,
+            s.supplier_name,
+            c.contract_id AS po_jo_contract_no, c.contract_amount,
+            CASE WHEN c.contract_id IS NOT NULL THEN COALESCE(p.approved_budget_abc - c.contract_amount, 0.0) ELSE 0.0 END AS savings,
+            d.milestone_description, d.delivery_status, d.actual_delivery_date,
+            d.payment_type, d.payment_gross_amount, d.payment_net_amount, d.dv_rci_serial_no, d.check_date,
+            w.warranty_status,
+            COALESCE(c.ntp_date, p.date_received_bacsec, '2026-01-01') AS project_date,
+            p.saro_pdf, p.ppmp_pdf, c.request_order_pdf, p.market_scoping_pdf, p.tech_specs_pdf,
+            c.signed_contract_pdf, d.po_pdf, p.abstract_quotations_pdf, w.warranty_certificate_pdf
+        FROM projects p
+        LEFT JOIN contracts c ON p.project_id = c.project_id
+        LEFT JOIN suppliers s ON c.supplier_id = s.supplier_id
+        LEFT JOIN deliveries_and_payments d ON c.contract_id = d.contract_id
+        LEFT JOIN warranties w ON c.contract_id = w.contract_id
+    """
+
 def export_master_data(output_path, filters=None):
     """
     Queries all tables from procurement.db, joins them into a flat format,
@@ -138,43 +163,10 @@ def export_master_data(output_path, filters=None):
     them to a styled native Excel worksheet (.xlsx).
     """
     db_file = Path(__file__).parent / "procurement.db"
-    conn = sqlite3.connect(db_file)
+    conn = sqlite3.connect(db_file, timeout=20.0)
     cur = conn.cursor()
     
-    # Query project documents map
-    try:
-        cur.execute("SELECT project_id, document_type, file_reference FROM project_documents")
-        project_docs_map = {}
-        for pid, dtype, ref in cur.fetchall():
-            if pid not in project_docs_map:
-                project_docs_map[pid] = {}
-            project_docs_map[pid][dtype] = ref
-    except Exception:
-        project_docs_map = {}
-        
-    query = """
-        SELECT 
-            p.id, -- index 0
-            p.proj_id_no, p.project_name, p.bureau_division_name, p.focal_person, p.mode_of_procurement, p.abc_amount, p.status,
-            pb.budget_type, pb.app_amount, pb.ors_amount, pb.ors_serial_no,
-            s.supplier_name,
-            c.po_jo_contract_no, c.contract_amount,
-            d.milestone_deliverable, d.status_of_delivery, d.actual_delivery_date,
-            pm.types_of_payment, pm.payment_amount_gross, pm.payment_amount_net, pm.rci_dv_acic_no, pm.check_date_lddap_ada,
-            w.retention_period_warranty_status,
-            COALESCE(c.contract_date, 
-                     (SELECT MIN(d.date_prepared) FROM project_documents d WHERE d.project_id = p.id),
-                     (SELECT MIN(b.date_received_bacsec) FROM bids b WHERE b.project_id = p.id),
-                     '2026-01-01') AS project_date
-        FROM projects p
-        LEFT JOIN project_budgets pb ON p.id = pb.project_id
-        LEFT JOIN contracts c ON p.id = c.project_id
-        LEFT JOIN suppliers s ON c.supplier_id = s.id
-        LEFT JOIN deliverables d ON c.id = d.contract_id
-        LEFT JOIN payments pm ON d.id = pm.deliverable_id
-        LEFT JOIN warranties w ON c.id = w.contract_id
-        ORDER BY p.proj_id_no
-    """
+    query = get_base_query() + " ORDER BY p.project_id"
     
     try:
         cur.execute(query)
@@ -182,58 +174,55 @@ def export_master_data(output_path, filters=None):
         
         # Apply filters programmatically
         filtered_rows = []
-        if filters:
-            from datetime import datetime, date
-            status_filter = filters.get("status", "All Statuses")
-            division_filter = filters.get("division", "All Divisions")
-            date_filter = filters.get("date", "All Dates")
-            current_date = date.today()
+        from datetime import datetime, date
+        current_date = date.today()
+        
+        status_filter = filters.get("status", "All Statuses") if filters else "All Statuses"
+        division_filter = filters.get("division", "All Divisions") if filters else "All Divisions"
+        date_filter = filters.get("date", "All Dates") if filters else "All Dates"
+        
+        # Sort rows by date if chosen
+        if date_filter == "Newest First" or date_filter == "Newest":
+            rows = sorted(rows, key=lambda x: x[25] or "", reverse=True)
+        elif date_filter == "Oldest First" or date_filter == "Oldest":
+            rows = sorted(rows, key=lambda x: x[25] or "", reverse=False)
+        
+        for row in rows:
+            row_status = row[7]
+            row_division = row[3]
+            row_date_str = row[25]
             
-            for row in rows:
-                row_status = row[7] # index 0 is p.id, so shifted by 1
-                row_division = row[3]
-                row_date_str = row[24]
+            # Status Filter
+            if status_filter != "All Statuses" and row_status != status_filter:
+                continue
                 
-                # Status Filter
-                if status_filter != "All Statuses" and row_status != status_filter:
-                    continue
-                    
-                # Division Filter
-                if division_filter != "All Divisions" and (row_division is None or row_division.strip() != division_filter.strip()):
-                    continue
-                    
-                # Date Presets Filter
-                if date_filter != "All Dates" and row_date_str:
-                    try:
-                        proj_date = datetime.strptime(row_date_str, "%Y-%m-%d").date()
-                        days_diff = (current_date - proj_date).days
-                        if date_filter == "Within 24 hours only" and not (0 <= days_diff <= 1):
-                            continue
-                        elif date_filter == "Within a week only" and not (0 <= days_diff <= 7):
-                            continue
-                        elif date_filter == "Within a month only" and not (0 <= days_diff <= 30):
-                            continue
-                    except Exception:
-                        pass
+            # Division Filter
+            if division_filter != "All Divisions" and (row_division is None or row_division.strip() != division_filter.strip()):
+                continue
                 
-                # Append normal columns (row[1:24]) and then the 9 doc fields
-                pid = row[0]
-                base_data = list(row[1:24])
-                for dtype in ["SARO", "PPMP", "RQ", "MS", "TS", "PO_Phase2", "RFQ_Phase3", "Abstract", "PO_Phase6"]:
-                    base_data.append(project_docs_map.get(pid, {}).get(dtype, ""))
-                filtered_rows.append(base_data)
-        else:
-            for row in rows:
-                pid = row[0]
-                base_data = list(row[1:24])
-                for dtype in ["SARO", "PPMP", "RQ", "MS", "TS", "PO_Phase2", "RFQ_Phase3", "Abstract", "PO_Phase6"]:
-                    base_data.append(project_docs_map.get(pid, {}).get(dtype, ""))
-                filtered_rows.append(base_data)
+            # Date Presets Filter
+            if date_filter not in ("All Dates", "Newest First", "Oldest First") and row_date_str:
+                try:
+                    proj_date = datetime.strptime(row_date_str, "%Y-%m-%d").date()
+                    days_diff = (current_date - proj_date).days
+                    if date_filter == "Within 24 hours only" and not (0 <= days_diff <= 1):
+                        continue
+                    elif date_filter == "Within a week only" and not (0 <= days_diff <= 7):
+                        continue
+                    elif date_filter == "Within a month only" and not (0 <= days_diff <= 30):
+                        continue
+                except Exception:
+                    pass
+            
+            # Form base data array
+            base_data = list(row[1:25]) # project_id to warranty_status (including savings at index 15)
+            base_data.extend(list(row[26:])) # saro_pdf to warranty_certificate_pdf
+            filtered_rows.append(base_data)
                 
         headers = [
             "Project ID", "Project Name", "Bureau/Division", "Focal Person", "Mode of Procurement", "ABC Budget (₱)", "Project Status",
             "Budget Type", "App Allocation (₱)", "ORS Amount (₱)", "ORS Serial No",
-            "Supplier Name", "PO/JO Contract No", "Contract Amount (₱)",
+            "Supplier Name", "PO/JO Contract No", "Contract Price (₱)", "Savings (₱)",
             "Milestone Deliverable", "Delivery Status", "Actual Delivery Date",
             "Payment Type", "Payment Gross (₱)", "Payment Net (₱)", "DV / RCI No", "Check Date",
             "Warranty Status",
@@ -259,40 +248,10 @@ def export_project_timeline(project_id, output_path):
     Queries all timeline data related to a specific project and exports it to a styled native Excel worksheet (.xlsx).
     """
     db_file = Path(__file__).parent / "procurement.db"
-    conn = sqlite3.connect(db_file)
+    conn = sqlite3.connect(db_file, timeout=20.0)
     cur = conn.cursor()
     
-    # Query project documents map
-    try:
-        cur.execute("SELECT project_id, document_type, file_reference FROM project_documents WHERE project_id = ?", (project_id,))
-        project_docs_map = {}
-        for pid, dtype, ref in cur.fetchall():
-            if pid not in project_docs_map:
-                project_docs_map[pid] = {}
-            project_docs_map[pid][dtype] = ref
-    except Exception:
-        project_docs_map = {}
-        
-    query = """
-        SELECT 
-            p.id,
-            p.proj_id_no, p.project_name, p.bureau_division_name, p.focal_person, p.mode_of_procurement, p.abc_amount, p.status,
-            pb.budget_type, pb.app_amount, pb.ors_amount, pb.ors_serial_no,
-            s.supplier_name,
-            c.po_jo_contract_no, c.contract_amount,
-            d.milestone_deliverable, d.status_of_delivery, d.actual_delivery_date,
-            pm.types_of_payment, pm.payment_amount_gross, pm.payment_amount_net, pm.rci_dv_acic_no, pm.check_date_lddap_ada,
-            w.retention_period_warranty_status
-        FROM projects p
-        LEFT JOIN project_budgets pb ON p.id = pb.project_id
-        LEFT JOIN contracts c ON p.id = c.project_id
-        LEFT JOIN suppliers s ON c.supplier_id = s.id
-        LEFT JOIN deliverables d ON c.id = d.contract_id
-        LEFT JOIN payments pm ON d.id = pm.deliverable_id
-        LEFT JOIN warranties w ON c.id = w.contract_id
-        WHERE p.id = ?
-        ORDER BY p.proj_id_no
-    """
+    query = get_base_query() + " WHERE p.project_id = ? ORDER BY p.project_id"
     
     try:
         cur.execute(query, (project_id,))
@@ -300,16 +259,14 @@ def export_project_timeline(project_id, output_path):
         
         filtered_rows = []
         for row in rows:
-            pid = row[0]
-            base_data = list(row[1:])
-            for dtype in ["SARO", "PPMP", "RQ", "MS", "TS", "PO_Phase2", "RFQ_Phase3", "Abstract", "PO_Phase6"]:
-                base_data.append(project_docs_map.get(pid, {}).get(dtype, ""))
+            base_data = list(row[1:25])
+            base_data.extend(list(row[26:]))
             filtered_rows.append(base_data)
             
         headers = [
             "Project ID", "Project Name", "Bureau/Division", "Focal Person", "Mode of Procurement", "ABC Budget (₱)", "Project Status",
             "Budget Type", "App Allocation (₱)", "ORS Amount (₱)", "ORS Serial No",
-            "Supplier Name", "PO/JO Contract No", "Contract Amount (₱)",
+            "Supplier Name", "PO/JO Contract No", "Contract Price (₱)", "Savings (₱)",
             "Milestone Deliverable", "Delivery Status", "Actual Delivery Date",
             "Payment Type", "Payment Gross (₱)", "Payment Net (₱)", "DV / RCI No", "Check Date",
             "Warranty Status",

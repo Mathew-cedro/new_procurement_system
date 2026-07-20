@@ -67,6 +67,7 @@ BUTTON_CANCEL_STYLE = """
 class BaseFormDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint)
         self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
         
     def set_field_validation(self, widget, is_valid):
@@ -92,28 +93,47 @@ class BaseFormDialog(QDialog):
 
     def validate_inputs(self):
         return True
-
+    
+# Creates the whole windows for adding information
 class CreateProjectDialog(BaseFormDialog):
     def __init__(self, parent=None, project_data=None):
         super().__init__(parent)
         self.project_data = project_data
+        
+        self.saro_file_path = None
+        self.ppmp_file_path = None
+        self.ms_file_path = None
+        self.ts_file_path = None
+
+        # 
         if self.project_data:
             self.setWindowTitle("Edit Project Details")
         else:
             self.setWindowTitle("Create New Procurement Project")
-        self.resize(480, 520)
+        self.resize(600, 760)
         self.setup_ui()
         
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(15, 15, 15, 15)
         
         title_text = "Edit Project (Phase 1: Planning)" if self.project_data else "Create Project (Phase 1: Planning)"
         title = QLabel(title_text)
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #00ffcc; margin-bottom: 10px;")
-        layout.addWidget(title)
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #00ffcc; margin-bottom: 5px;")
+        self.layout.addWidget(title)
         
-        form = QFormLayout()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(10)
+        
+        # Information groupbox
+        info_group = QGroupBox("Project Information")
+        info_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #3a3a4a; padding-top: 10px; }")
+        form = QFormLayout(info_group)
         form.setSpacing(10)
         
         self.id_input = QLineEdit()
@@ -168,11 +188,66 @@ class CreateProjectDialog(BaseFormDialog):
         form.addRow("Fund Source Type:", self.source_input)
         
         self.cycle_input = QComboBox()
-        self.cycle_input.addItems(["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"])
+        self.cycle_input.addItems(["1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"])
         form.addRow("APP *:", self.cycle_input)
+        
+        self.saro_input = QLineEdit()
+        self.saro_input.setPlaceholderText("e.g. SARO-BMB-A-26-000123")
+        form.addRow("SARO Control Number:", self.saro_input)
+        
+        scroll_layout.addWidget(info_group)
+        
+        # Documents groupbox
+        doc_group = QGroupBox("Planning & Budget Documents")
+        doc_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #3a3a4a; padding-top: 10px; }")
+        doc_layout = QFormLayout(doc_group)
+        doc_layout.setSpacing(8)
+        
+        # SARO Document PDF
+        saro_doc_layout = QHBoxLayout()
+        self.saro_lbl = QLabel("<i>No SARO PDF Uploaded</i>")
+        self.saro_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        saro_btn = QPushButton("Browse...")
+        saro_btn.clicked.connect(self.browse_saro)
+        saro_doc_layout.addWidget(self.saro_lbl)
+        saro_doc_layout.addWidget(saro_btn)
+        doc_layout.addRow("SARO PDF Document:", saro_doc_layout)
+        
+        # PPMP Document PDF
+        ppmp_doc_layout = QHBoxLayout()
+        self.ppmp_lbl = QLabel("<i>No PPMP PDF Uploaded</i>")
+        self.ppmp_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        ppmp_btn = QPushButton("Browse...")
+        ppmp_btn.clicked.connect(self.browse_ppmp)
+        ppmp_doc_layout.addWidget(self.ppmp_lbl)
+        ppmp_doc_layout.addWidget(ppmp_btn)
+        doc_layout.addRow("PPMP PDF Document:", ppmp_doc_layout)
+        
+        # MS Document PDF
+        ms_doc_layout = QHBoxLayout()
+        self.ms_lbl = QLabel("<i>No Market Scoping PDF Uploaded</i>")
+        self.ms_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        ms_btn = QPushButton("Browse...")
+        ms_btn.clicked.connect(self.browse_ms)
+        ms_doc_layout.addWidget(self.ms_lbl)
+        ms_doc_layout.addWidget(ms_btn)
+        doc_layout.addRow("Market Scoping PDF:", ms_doc_layout)
+        
+        # TS Document PDF
+        ts_doc_layout = QHBoxLayout()
+        self.ts_lbl = QLabel("<i>No Tech Specs/TOR PDF Uploaded</i>")
+        self.ts_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        ts_btn = QPushButton("Browse...")
+        ts_btn.clicked.connect(self.browse_ts)
+        ts_doc_layout.addWidget(self.ts_lbl)
+        ts_doc_layout.addWidget(ts_btn)
+        doc_layout.addRow("Tech Specs/TOR PDF:", ts_doc_layout)
+        
+        scroll_layout.addWidget(doc_group)
         
         # Populate if editing
         if self.project_data:
+            pid = self.project_data["id"]
             self.id_input.setText(self.project_data.get("proj_id_no", ""))
             self.name_input.setText(self.project_data.get("project_name", ""))
             self.div_input.setText(self.project_data.get("bureau_division_name", ""))
@@ -188,10 +263,42 @@ class CreateProjectDialog(BaseFormDialog):
             self.source_input.setText(self.project_data.get("fund_source", ""))
             
             cycle_val = self.project_data.get("app_cycle", 1)
-            self.cycle_input.setCurrentIndex(max(0, min(cycle_val - 1, 7)))
+            self.cycle_input.setCurrentIndex(max(0, min(cycle_val - 1, 11)))
             
-        layout.addLayout(form)
-        layout.addSpacing(15)
+            self.saro_input.setText(self.project_data.get("saro_number", ""))
+            
+            # Load documents
+            try:
+                import os
+                conn = database_config.get_db_connection()
+                cur = conn.cursor()
+                
+                cur.execute("SELECT saro_pdf, ppmp_pdf, market_scoping_pdf, tech_specs_pdf FROM projects WHERE project_id = ?", (pid,))
+                row = cur.fetchone()
+                if row:
+                    if row["saro_pdf"]:
+                        self.saro_file_path = row["saro_pdf"]
+                        self.saro_lbl.setText("📄 " + os.path.basename(self.saro_file_path))
+                        self.saro_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                    if row["ppmp_pdf"]:
+                        self.ppmp_file_path = row["ppmp_pdf"]
+                        self.ppmp_lbl.setText("📄 " + os.path.basename(self.ppmp_file_path))
+                        self.ppmp_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                    if row["market_scoping_pdf"]:
+                        self.ms_file_path = row["market_scoping_pdf"]
+                        self.ms_lbl.setText("📄 " + os.path.basename(self.ms_file_path))
+                        self.ms_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                    if row["tech_specs_pdf"]:
+                        self.ts_file_path = row["tech_specs_pdf"]
+                        self.ts_lbl.setText("📄 " + os.path.basename(self.ts_file_path))
+                        self.ts_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                conn.close()
+            except Exception as e:
+                print(f"Error loading project docs in CreateProjectDialog: {e}")
+                
+        scroll_content.setLayout(scroll_layout)
+        scroll.setWidget(scroll_content)
+        self.layout.addWidget(scroll)
         
         # Buttons
         btn_layout = QHBoxLayout()
@@ -207,11 +314,42 @@ class CreateProjectDialog(BaseFormDialog):
         btn_layout.addWidget(cancel_btn)
         btn_layout.addStretch()
         btn_layout.addWidget(submit_btn)
-        layout.addLayout(btn_layout)
+        self.layout.addLayout(btn_layout)
         
-        # Initial validation highlight
         self.validate_inputs()
         
+    def browse_saro(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload SARO Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.saro_lbl.setText("📄 " + os.path.basename(file_path))
+            self.saro_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.saro_file_path = file_path
+            
+    def browse_ppmp(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload PPMP Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.ppmp_lbl.setText("📄 " + os.path.basename(file_path))
+            self.ppmp_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.ppmp_file_path = file_path
+            
+    def browse_ms(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Market Scoping Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.ms_lbl.setText("📄 " + os.path.basename(file_path))
+            self.ms_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.ms_file_path = file_path
+            
+    def browse_ts(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Tech Specs/TOR Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.ts_lbl.setText("📄 " + os.path.basename(file_path))
+            self.ts_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.ts_file_path = file_path
+
     def validate_inputs(self):
         id_valid = len(self.id_input.text().strip()) > 0
         name_valid = len(self.name_input.text().strip()) > 0
@@ -231,25 +369,39 @@ class CreateProjectDialog(BaseFormDialog):
         name = self.name_input.text().strip()
         abc = self.abc_input.value()
         app_cycle = self.cycle_input.currentIndex() + 1
+        saro_no = self.saro_input.text().strip() or None
         
         if self.project_data:
             # Edit Mode
             success, result = database_config.update_project(
-                self.project_data["id"], proj_id, name, self.project_data.get("saro_number"),
+                self.project_data["id"], proj_id, name, saro_no,
                 self.div_input.text().strip(), self.focal_input.text().strip(), self.contact_input.text().strip(),
                 self.mode_input.currentText(), abc, self.funds_input.text().strip(),
-                self.source_input.text().strip(), app_cycle
+                self.source_input.text().strip(), app_cycle, self.project_data.get("remarks")
             )
             action_name = "updated"
+            project_id = self.project_data["id"]
         else:
             # Add Mode
             success, result = database_config.create_project(
-                proj_id, name, None, self.div_input.text().strip(), self.focal_input.text().strip(),
+                proj_id, name, saro_no, self.div_input.text().strip(), self.focal_input.text().strip(),
                 self.contact_input.text().strip(), self.mode_input.currentText(), abc,
-                self.funds_input.text().strip(), self.source_input.text().strip(), app_cycle
+                self.funds_input.text().strip(), self.source_input.text().strip(), app_cycle, None
             )
             action_name = "created"
-        if success:
+            project_id = result if success else None
+            
+        if success and project_id:
+            # Save files
+            if self.saro_file_path and not self.saro_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(project_id, "SARO", self.saro_file_path)
+            if self.ppmp_file_path and not self.ppmp_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(project_id, "PPMP", self.ppmp_file_path)
+            if self.ms_file_path and not self.ms_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(project_id, "MS", self.ms_file_path)
+            if self.ts_file_path and not self.ts_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(project_id, "TS", self.ts_file_path)
+                
             QMessageBox.information(self, "Success", f"Project {proj_id} successfully {action_name}!")
             self.accept()
         else:
@@ -261,26 +413,36 @@ class AddBidDialog(BaseFormDialog):
         self.project_id = project_id
         self.bid_data = bid_data
         
-        self.noa_file_path = None
-        self.reso_file_path = None
+        self.abstract_file_path = None
         
         if self.bid_data:
-            self.setWindowTitle("Phase 2: Edit Bidding Details")
+            self.setWindowTitle("Phase 1: Edit Bidding Details")
         else:
-            self.setWindowTitle("Phase 2: Add Bidding Details")
-        self.resize(480, 560)
+            self.setWindowTitle("Phase 1: Add Bidding Details")
+        self.resize(700, 680)
         self.setup_ui()
         
     def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(15, 15, 15, 15)
         
         title_text = "Edit Bidding Information" if self.bid_data else "Add Bidding Information"
         title = QLabel(title_text)
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #00ffcc; margin-bottom: 10px;")
-        layout.addWidget(title)
+        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #00ffcc; margin-bottom: 5px;")
+        self.layout.addWidget(title)
         
-        form = QFormLayout()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(10)
+        
+        # Bidding Info groupbox
+        bid_group = QGroupBox("Bidding details")
+        bid_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #3a3a4a; padding-top: 10px; }")
+        form = QFormLayout(bid_group)
         form.setSpacing(10)
         
         self.ref_input = QLineEdit()
@@ -304,35 +466,6 @@ class AddBidDialog(BaseFormDialog):
         self.reso_input.setPlaceholderText("e.g. BAC-Reso-2026-12")
         form.addRow("BAC Resolution (if NOA unavailable):", self.reso_input)
         
-        # Notice of Award (NOA) Document Upload
-        noa_layout = QHBoxLayout()
-        self.noa_lbl = QLabel("<i>No NOA PDF Uploaded</i>")
-        self.noa_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        noa_btn = QPushButton("Browse...")
-        noa_btn.clicked.connect(self.browse_noa)
-        noa_layout.addWidget(self.noa_lbl)
-        noa_layout.addWidget(noa_btn)
-        form.addRow("Notice of Award (NOA) PDF:", noa_layout)
-        
-        # BAC Resolution Checkbox
-        self.reso_check = QCheckBox("Add BAC Resolution Document")
-        self.reso_check.setChecked(False)
-        self.reso_check.stateChanged.connect(self.toggle_reso_upload)
-        form.addRow("", self.reso_check)
-        
-        # BAC Resolution Document Upload (initially hidden)
-        self.reso_upload_widget = QWidget()
-        reso_layout = QHBoxLayout(self.reso_upload_widget)
-        reso_layout.setContentsMargins(0, 0, 0, 0)
-        self.reso_lbl = QLabel("<i>No BAC Reso PDF Uploaded</i>")
-        self.reso_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        reso_btn = QPushButton("Browse...")
-        reso_btn.clicked.connect(self.browse_reso)
-        reso_layout.addWidget(self.reso_lbl)
-        reso_layout.addWidget(reso_btn)
-        form.addRow("BAC Resolution PDF:", self.reso_upload_widget)
-        self.reso_upload_widget.setVisible(False)
-        
         self.bacsec_date = QDateEdit(QDate.currentDate())
         self.bacsec_date.setCalendarPopup(True)
         form.addRow("Date Received BACSec *:", self.bacsec_date)
@@ -350,6 +483,26 @@ class AddBidDialog(BaseFormDialog):
         
         self.box_c_input = QLineEdit("Pedro Reyes")
         form.addRow("Signatory Box C (Approved by):", self.box_c_input)
+        
+        scroll_layout.addWidget(bid_group)
+        
+        # Document uploads groupbox
+        doc_group = QGroupBox("Bidding Documents")
+        doc_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #3a3a4a; padding-top: 10px; }")
+        doc_layout = QFormLayout(doc_group)
+        doc_layout.setSpacing(8)
+        
+        # Abstract Document PDF
+        abs_doc_layout = QHBoxLayout()
+        self.abs_lbl = QLabel("<i>No Abstract PDF Uploaded</i>")
+        self.abs_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        abs_btn = QPushButton("Browse...")
+        abs_btn.clicked.connect(self.browse_abstract)
+        abs_doc_layout.addWidget(self.abs_lbl)
+        abs_doc_layout.addWidget(abs_btn)
+        doc_layout.addRow("Abstract of Quotations PDF:", abs_doc_layout)
+        
+        scroll_layout.addWidget(doc_group)
         
         # Populate if editing
         if self.bid_data:
@@ -377,37 +530,26 @@ class AddBidDialog(BaseFormDialog):
             self.box_a_input.setText(self.bid_data.get("signatory_box_a", ""))
             self.box_c_input.setText(self.bid_data.get("signatory_box_c", ""))
             
-        # Load existing NOA & BAC Reso documents
-        if self.project_id:
+            # Load Abstract doc
             try:
+                import os
                 conn = database_config.get_db_connection()
                 cur = conn.cursor()
-                # NOA
-                cur.execute("SELECT * FROM project_documents WHERE project_id = ? AND document_type = 'NOA'", (self.project_id,))
+                cur.execute("SELECT abstract_quotations_pdf FROM projects WHERE project_id = ?", (self.project_id,))
                 row = cur.fetchone()
-                if row and row["file_reference"]:
-                    self.noa_file_path = row["file_reference"]
-                    import os
-                    self.noa_lbl.setText("📄 " + os.path.basename(self.noa_file_path))
-                    self.noa_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-                
-                # BAC Reso
-                cur.execute("SELECT * FROM project_documents WHERE project_id = ? AND document_type = 'BAC_Reso'", (self.project_id,))
-                row = cur.fetchone()
-                if row and row["file_reference"]:
-                    self.reso_file_path = row["file_reference"]
-                    import os
-                    self.reso_lbl.setText("📄 " + os.path.basename(self.reso_file_path))
-                    self.reso_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-                    self.reso_check.setChecked(True)
-                    self.reso_upload_widget.setVisible(True)
+                if row and row["abstract_quotations_pdf"]:
+                    self.abstract_file_path = row["abstract_quotations_pdf"]
+                    self.abs_lbl.setText("📄 " + os.path.basename(self.abstract_file_path))
+                    self.abs_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
                 conn.close()
             except Exception as e:
-                print(f"Error loading Phase 2 docs in AddBidDialog: {e}")
-            
-        layout.addLayout(form)
-        layout.addSpacing(15)
+                print(f"Error loading Abstract doc in AddBidDialog: {e}")
+                
+        scroll_content.setLayout(scroll_layout)
+        scroll.setWidget(scroll_content)
+        self.layout.addWidget(scroll)
         
+        # Buttons
         btn_layout = QHBoxLayout()
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setStyleSheet(BUTTON_CANCEL_STYLE)
@@ -421,30 +563,18 @@ class AddBidDialog(BaseFormDialog):
         btn_layout.addWidget(cancel_btn)
         btn_layout.addStretch()
         btn_layout.addWidget(submit_btn)
-        layout.addLayout(btn_layout)
+        self.layout.addLayout(btn_layout)
         
-        # Initial validation highlight
         self.validate_inputs()
         
-    def toggle_reso_upload(self, state):
-        self.reso_upload_widget.setVisible(state == 2)
-        
-    def browse_noa(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Upload NOA Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+    def browse_abstract(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Abstract of Quotations (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
         if file_path:
             import os
-            self.noa_lbl.setText("📄 " + os.path.basename(file_path))
-            self.noa_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-            self.noa_file_path = file_path
-            
-    def browse_reso(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Upload BAC Resolution (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
-        if file_path:
-            import os
-            self.reso_lbl.setText("📄 " + os.path.basename(file_path))
-            self.reso_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-            self.reso_file_path = file_path
-            
+            self.abs_lbl.setText("📄 " + os.path.basename(file_path))
+            self.abs_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.abstract_file_path = file_path
+
     def validate_inputs(self):
         ref_valid = len(self.ref_input.text().strip()) > 0
         self.set_field_validation(self.ref_input, ref_valid)
@@ -478,23 +608,11 @@ class AddBidDialog(BaseFormDialog):
                 pr_no, post_phil, abstract_no, reso_no
             )
             action_name = "recorded"
-        
+            
         if success:
-            # Save files
-            if self.noa_file_path and not self.noa_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "NOA", self.noa_file_path)
-            if self.reso_check.isChecked() and self.reso_file_path and not self.reso_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "BAC_Reso", self.reso_file_path)
-            elif not self.reso_check.isChecked():
-                try:
-                    conn = database_config.get_db_connection()
-                    cur = conn.cursor()
-                    cur.execute("DELETE FROM project_documents WHERE project_id = ? AND document_type = 'BAC_Reso'", (self.project_id,))
-                    conn.commit()
-                    conn.close()
-                except Exception:
-                    pass
-                    
+            if self.abstract_file_path and not self.abstract_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "Abstract", self.abstract_file_path)
+                
             QMessageBox.information(self, "Success", f"Bidding details successfully {action_name}!")
             self.accept()
         else:
@@ -506,11 +624,17 @@ class AddContractDialog(BaseFormDialog):
         self.project_id = project_id
         self.bid_id = bid_id
         self.contract_data = contract_data
+        
+        self.noa_file_path = None
+        self.contract_file_path = None
+        self.reso_file_path = None
+        self.rq_file_path = None
+        
         if self.contract_data:
-            self.setWindowTitle("Phase 3: Edit Contract Details")
+            self.setWindowTitle("Phase 2: Edit Contract Details")
         else:
-            self.setWindowTitle("Phase 3: Add Contract & Supplier Details")
-        self.resize(550, 600)
+            self.setWindowTitle("Phase 2: Add Contract & Supplier Details")
+        self.resize(700, 680)
         self.setup_ui()
         
     def setup_ui(self):
@@ -610,6 +734,7 @@ class AddContractDialog(BaseFormDialog):
         
         self.ntp_date = QDateEdit(QDate.currentDate())
         self.ntp_date.setCalendarPopup(True)
+        self.ntp_date.dateChanged.connect(self.calculate_end_date)
         con_layout.addRow("Notice to Proceed Date:", self.ntp_date)
         
         self.duration = QSpinBox()
@@ -639,17 +764,70 @@ class AddContractDialog(BaseFormDialog):
         self.sec_amount = QDoubleSpinBox()
         self.sec_amount.setRange(0, 99999999.99)
         self.sec_amount.setPrefix("₱")
+        self.con_amount.valueChanged.connect(self.calculate_security_default)
         sec_layout.addRow("Security Amount:", self.sec_amount)
         
         self.sec_valid = QDateEdit(QDate.currentDate().addDays(90))
         self.sec_valid.setCalendarPopup(True)
         sec_layout.addRow("Security Validity Date:", self.sec_valid)
         
+        # Document Upload Group
+        doc_group = QGroupBox("Contract & Award Documents")
+        doc_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #3a3a4a; padding-top: 10px; }")
+        doc_layout = QFormLayout(doc_group)
+        doc_layout.setSpacing(8)
+        
+        noa_layout = QHBoxLayout()
+        self.noa_lbl = QLabel("<i>No NOA PDF Uploaded</i>")
+        self.noa_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        noa_btn = QPushButton("Browse...")
+        noa_btn.clicked.connect(self.browse_noa)
+        noa_layout.addWidget(self.noa_lbl)
+        noa_layout.addWidget(noa_btn)
+        doc_layout.addRow("Notice of Award (NOA) PDF:", noa_layout)
+        
+        contract_layout = QHBoxLayout()
+        self.contract_lbl = QLabel("<i>No Signed Contract PDF Uploaded</i>")
+        self.contract_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        contract_btn = QPushButton("Browse...")
+        contract_btn.clicked.connect(self.browse_contract)
+        contract_layout.addWidget(self.contract_lbl)
+        contract_layout.addWidget(contract_btn)
+        doc_layout.addRow("Signed Contract PDF:", contract_layout)
+        
+        self.reso_check = QCheckBox("BAC Reso (IF PRIMARY SUPPLIER IS NOT AVAILABLE)")
+        self.reso_check.stateChanged.connect(self.toggle_reso_upload)
+        doc_layout.addRow("", self.reso_check)
+        
+        self.reso_upload_widget = QWidget()
+        reso_layout = QHBoxLayout(self.reso_upload_widget)
+        reso_layout.setContentsMargins(0, 0, 0, 0)
+        self.reso_lbl = QLabel("<i>No BAC Reso PDF Uploaded</i>")
+        self.reso_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        reso_btn = QPushButton("Browse...")
+        reso_btn.clicked.connect(self.browse_reso)
+        reso_layout.addWidget(self.reso_lbl)
+        reso_layout.addWidget(reso_btn)
+        doc_layout.addRow("BAC Resolution PDF:", self.reso_upload_widget)
+        self.reso_upload_widget.setVisible(False)
+        
+        rq_layout = QHBoxLayout()
+        self.rq_lbl = QLabel("<i>No RQ PDF Uploaded</i>")
+        self.rq_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        rq_btn = QPushButton("Browse...")
+        rq_btn.clicked.connect(self.browse_rq)
+        rq_layout.addWidget(self.rq_lbl)
+        rq_layout.addWidget(rq_btn)
+        doc_layout.addRow("Request Order (RQ) PDF:", rq_layout)
+        
         scroll_layout.addWidget(con_group)
         scroll_layout.addWidget(sec_group)
+        scroll_layout.addWidget(doc_group)
         
+        self.loading_data = False
         # Populate if editing
         if self.contract_data:
+            self.loading_data = True
             supplier_id = self.contract_data.get("supplier_id")
             if supplier_id is not None:
                 idx = self.supplier_combo.findData(supplier_id)
@@ -686,6 +864,38 @@ class AddContractDialog(BaseFormDialog):
             sv_date = self.contract_data.get("performance_security_validity", "")
             if sv_date:
                 self.sec_valid.setDate(QDate.fromString(sv_date, "yyyy-MM-dd"))
+            self.loading_data = False
+                
+        # Load existing docs
+        if self.project_id:
+            try:
+                conn = database_config.get_db_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT * FROM contracts WHERE project_id = ?", (self.project_id,))
+                row = cur.fetchone()
+                if row:
+                    import os
+                    if row["noa_pdf"]:
+                        self.noa_file_path = row["noa_pdf"]
+                        self.noa_lbl.setText("📄 " + os.path.basename(self.noa_file_path))
+                        self.noa_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                    if row["signed_contract_pdf"]:
+                        self.contract_file_path = row["signed_contract_pdf"]
+                        self.contract_lbl.setText("📄 " + os.path.basename(self.contract_file_path))
+                        self.contract_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                    if row["bac_resolution_pdf"]:
+                        self.reso_file_path = row["bac_resolution_pdf"]
+                        self.reso_lbl.setText("📄 " + os.path.basename(self.reso_file_path))
+                        self.reso_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.reso_check.setChecked(True)
+                        self.reso_upload_widget.setVisible(True)
+                    if row["request_order_pdf"]:
+                        self.rq_file_path = row["request_order_pdf"]
+                        self.rq_lbl.setText("📄 " + os.path.basename(self.rq_file_path))
+                        self.rq_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                conn.close()
+            except Exception as e:
+                print(f"Error loading Phase 1 docs in AddContractDialog: {e}")
                 
         scroll_content.setLayout(scroll_layout)
         scroll.setWidget(scroll_content)
@@ -709,6 +919,41 @@ class AddContractDialog(BaseFormDialog):
         
         # Initial validation highlight
         self.validate_inputs()
+        
+    def toggle_reso_upload(self, state):
+        self.reso_upload_widget.setVisible(state == 2)
+        
+    def browse_noa(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload NOA Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.noa_lbl.setText("📄 " + os.path.basename(file_path))
+            self.noa_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.noa_file_path = file_path
+            
+    def browse_contract(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Signed Contract (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.contract_lbl.setText("📄 " + os.path.basename(file_path))
+            self.contract_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.contract_file_path = file_path
+            
+    def browse_reso(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload BAC Resolution (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.reso_lbl.setText("📄 " + os.path.basename(file_path))
+            self.reso_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.reso_file_path = file_path
+
+    def browse_rq(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Request Order (RQ) (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.rq_lbl.setText("📄 " + os.path.basename(file_path))
+            self.rq_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.rq_file_path = file_path
         
     def validate_inputs(self):
         po_jo_valid = len(self.po_jo_no.text().strip()) > 0
@@ -737,8 +982,13 @@ class AddContractDialog(BaseFormDialog):
     def toggle_new_supplier_form(self, state):
         self.supplier_frame.setVisible(state == 2)
         
+    def calculate_security_default(self):
+        if getattr(self, "loading_data", False):
+            return
+        self.sec_amount.setValue(self.con_amount.value() * 0.10)
+        
     def calculate_end_date(self):
-        start = self.contract_date.date()
+        start = self.ntp_date.date()
         days = self.duration.value()
         expected = start.addDays(days)
         self.end_date_lbl.setText(expected.toString("yyyy-MM-dd"))
@@ -807,7 +1057,27 @@ class AddContractDialog(BaseFormDialog):
                 expected_end, self.nature.currentText()
             )
             action_name = "saved"
+            
         if success:
+            # Save files
+            if self.noa_file_path and not self.noa_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "NOA", self.noa_file_path)
+            if self.contract_file_path and not self.contract_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "Contract", self.contract_file_path)
+            if self.reso_check.isChecked() and self.reso_file_path and not self.reso_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "BAC_Reso", self.reso_file_path)
+            elif not self.reso_check.isChecked():
+                try:
+                    conn = database_config.get_db_connection()
+                    cur = conn.cursor()
+                    cur.execute("UPDATE contracts SET bac_resolution_pdf = NULL, bac_resolution_pdf_data = NULL WHERE project_id = ?", (self.project_id,))
+                    conn.commit()
+                    conn.close()
+                except Exception:
+                    pass
+            if self.rq_file_path and not self.rq_file_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "RQ", self.rq_file_path)
+                    
             QMessageBox.information(self, "Success", f"Contract and Supplier details successfully {action_name}!")
             self.accept()
         else:
@@ -818,11 +1088,30 @@ class AddDeliverableDialog(BaseFormDialog):
         super().__init__(parent)
         self.contract_id = contract_id
         self.deliverable_data = deliverable_data
+        
+        self.iar_file_path = None
+        self.po_file_path = None
+        self.abstract_file_path = None
+        
+        self.project_id = None
+        self.contract_amount = 0.0
+        try:
+            conn = database_config.get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT project_id, contract_amount FROM contracts WHERE contract_id = ?", (self.contract_id,))
+            row = cur.fetchone()
+            if row:
+                self.project_id = row["project_id"]
+                self.contract_amount = row["contract_amount"] if row["contract_amount"] is not None else 0.0
+            conn.close()
+        except Exception as e:
+            print(f"Error resolving project_id and contract_amount in AddDeliverableDialog: {e}")
+            
         if self.deliverable_data:
-            self.setWindowTitle("Phase 4: Edit Deliverable Milestone")
+            self.setWindowTitle("Phase 3: Edit Deliverable Milestone")
         else:
-            self.setWindowTitle("Phase 4: Add Deliverable Milestone")
-        self.resize(480, 480)
+            self.setWindowTitle("Phase 3: Add Deliverable Milestone")
+        self.resize(700, 680)
         self.setup_ui()
         
     def setup_ui(self):
@@ -833,6 +1122,13 @@ class AddDeliverableDialog(BaseFormDialog):
         title = QLabel(title_text)
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #00ffcc; margin-bottom: 10px;")
         layout.addWidget(title)
+        
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
         
         form = QFormLayout()
         form.setSpacing(8)
@@ -892,6 +1188,15 @@ class AddDeliverableDialog(BaseFormDialog):
         self.ld_amt.setPrefix("₱")
         form.addRow("Liquidated Damages Amt:", self.ld_amt)
         
+        # Connect automatic calculations for delays and liquidated damages
+        self.expect_date.dateChanged.connect(self.calculate_delays)
+        self.revised_date.dateChanged.connect(self.calculate_delays)
+        self.actual_date.dateChanged.connect(self.calculate_delays)
+        self.revised_date_check.stateChanged.connect(lambda state: self.calculate_delays())
+        self.actual_date_check.stateChanged.connect(lambda state: self.calculate_delays())
+        self.delays.valueChanged.connect(lambda val: self.calculate_liquidated_damages())
+        self.ld_rate.valueChanged.connect(lambda val: self.calculate_liquidated_damages())
+        
         self.iar = QLineEdit()
         self.iar.setPlaceholderText("e.g. IAR-2026-0002")
         form.addRow("IAR Number:", self.iar)
@@ -905,6 +1210,37 @@ class AddDeliverableDialog(BaseFormDialog):
         
         self.remarks = QLineEdit("On-track")
         form.addRow("Remarks Status:", self.remarks)
+        
+        # Document Uploads for Phase 3
+        # IAR
+        iar_layout = QHBoxLayout()
+        self.iar_lbl = QLabel("<i>No IAR PDF Uploaded</i>")
+        self.iar_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        iar_btn = QPushButton("Browse...")
+        iar_btn.clicked.connect(self.browse_iar)
+        iar_layout.addWidget(self.iar_lbl)
+        iar_layout.addWidget(iar_btn)
+        form.addRow("IAR Document PDF:", iar_layout)
+        
+        # Purchase Order
+        po_layout = QHBoxLayout()
+        self.po_lbl = QLabel("<i>No PO PDF Uploaded</i>")
+        self.po_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        po_btn = QPushButton("Browse...")
+        po_btn.clicked.connect(self.browse_po)
+        po_layout.addWidget(self.po_lbl)
+        po_layout.addWidget(po_btn)
+        form.addRow("Purchase Order (PO) PDF:", po_layout)
+        
+        # Abstract of Quotations
+        abs_layout = QHBoxLayout()
+        self.abs_lbl = QLabel("<i>No Abstract PDF Uploaded</i>")
+        self.abs_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        abs_btn = QPushButton("Browse...")
+        abs_btn.clicked.connect(self.browse_abstract)
+        abs_layout.addWidget(self.abs_lbl)
+        abs_layout.addWidget(abs_btn)
+        form.addRow("Abstract of Quotations PDF:", abs_layout)
         
         # Populate if editing
         if self.deliverable_data:
@@ -948,8 +1284,40 @@ class AddDeliverableDialog(BaseFormDialog):
             self.issues.setText(self.deliverable_data.get("issues_and_concerns", "None"))
             self.remarks.setText(self.deliverable_data.get("remarks_status", "On-track"))
             
-        layout.addLayout(form)
-        layout.addSpacing(15)
+        # Load existing documents if editing
+        if self.project_id:
+            try:
+                import os
+                conn = database_config.get_db_connection()
+                cur = conn.cursor()
+                
+                if self.deliverable_data:
+                    cur.execute("SELECT iar_pdf, po_pdf FROM deliveries_and_payments WHERE milestone_id = ?", (self.deliverable_data["id"],))
+                    row = cur.fetchone()
+                    if row:
+                        if row["iar_pdf"]:
+                            self.iar_file_path = row["iar_pdf"]
+                            self.iar_lbl.setText("📄 " + os.path.basename(self.iar_file_path))
+                            self.iar_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        if row["po_pdf"]:
+                            self.po_file_path = row["po_pdf"]
+                            self.po_lbl.setText("📄 " + os.path.basename(self.po_file_path))
+                            self.po_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                            
+                cur.execute("SELECT abstract_quotations_pdf FROM projects WHERE project_id = ?", (self.project_id,))
+                row = cur.fetchone()
+                if row and row["abstract_quotations_pdf"]:
+                    self.abstract_file_path = row["abstract_quotations_pdf"]
+                    self.abs_lbl.setText("📄 " + os.path.basename(self.abstract_file_path))
+                    self.abs_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                conn.close()
+            except Exception as e:
+                print(f"Error loading Phase 2 documents: {e}")
+                
+        scroll_layout.addLayout(form)
+        scroll_content.setLayout(scroll_layout)
+        scroll.setWidget(scroll_content)
+        layout.addWidget(scroll)
         
         btn_layout = QHBoxLayout()
         cancel_btn = QPushButton("Cancel")
@@ -965,10 +1333,59 @@ class AddDeliverableDialog(BaseFormDialog):
         btn_layout.addStretch()
         btn_layout.addWidget(submit_btn)
         layout.addLayout(btn_layout)
-        
-        # Initial validation highlight
         self.validate_inputs()
         
+    def calculate_delays(self):
+        if self.revised_date_check.isChecked():
+            target_date = self.revised_date.date()
+        else:
+            target_date = self.expect_date.date()
+            
+        if self.actual_date_check.isChecked():
+            current_date = self.actual_date.date()
+        else:
+            # For delay calculation while pending, compare against today
+            current_date = QDate.currentDate()
+            
+        days = target_date.daysTo(current_date)
+        if days > 0:
+            self.delays.setValue(days)
+        else:
+            self.delays.setValue(0)
+            
+        self.calculate_liquidated_damages()
+
+    def calculate_liquidated_damages(self):
+        contract_amt = getattr(self, "contract_amount", 0.0)
+        days = self.delays.value()
+        rate = self.ld_rate.value()
+        ld = contract_amt * days * rate
+        self.ld_amt.setValue(ld)
+        
+    def browse_iar(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload IAR Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.iar_lbl.setText("📄 " + os.path.basename(file_path))
+            self.iar_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.iar_file_path = file_path
+            
+    def browse_po(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Purchase Order (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.po_lbl.setText("📄 " + os.path.basename(file_path))
+            self.po_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.po_file_path = file_path
+            
+    def browse_abstract(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Abstract of Quotations (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.abs_lbl.setText("📄 " + os.path.basename(file_path))
+            self.abs_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.abstract_file_path = file_path
+            
     def validate_inputs(self):
         desc_valid = len(self.milestone.text().strip()) > 0
         self.set_field_validation(self.milestone, desc_valid)
@@ -1007,6 +1424,14 @@ class AddDeliverableDialog(BaseFormDialog):
             action_name = "saved"
             
         if success:
+            if self.project_id:
+                if self.iar_file_path and not self.iar_file_path.startswith("uploaded_documents/"):
+                    database_config.save_project_document(self.project_id, "IAR", self.iar_file_path)
+                if self.po_file_path and not self.po_file_path.startswith("uploaded_documents/"):
+                    database_config.save_project_document(self.project_id, "PO_Phase3", self.po_file_path)
+                if self.abstract_file_path and not self.abstract_file_path.startswith("uploaded_documents/"):
+                    database_config.save_project_document(self.project_id, "Abstract", self.abstract_file_path)
+                    
             QMessageBox.information(self, "Success", f"Deliverable milestone successfully {action_name}!")
             self.accept()
         else:
@@ -1019,9 +1444,9 @@ class AddPaymentDialog(BaseFormDialog):
         self.contract_data = contract_data
         self.payment_data = payment_data
         if self.payment_data:
-            self.setWindowTitle("Phase 5: Edit Payment Record")
+            self.setWindowTitle("Phase 3: Edit Payment Record")
         else:
-            self.setWindowTitle("Phase 5: Add Payment Record")
+            self.setWindowTitle("Phase 3: Add Payment Record")
         self.resize(480, 520)
         self.setup_ui()
         
@@ -1064,6 +1489,14 @@ class AddPaymentDialog(BaseFormDialog):
         self.gross_amt.valueChanged.connect(self.calculate_disbursement_net)
         self.gross_amt.valueChanged.connect(self.validate_inputs)
         form.addRow("Gross Payment Amount *:", self.gross_amt)
+        
+        # Savings / Rebates (Deductible)
+        self.savings = QDoubleSpinBox()
+        self.savings.setRange(0, 999999999.99)
+        self.savings.setSingleStep(1000.0)
+        self.savings.setPrefix("₱")
+        self.savings.valueChanged.connect(self.calculate_disbursement_net)
+        form.addRow("Savings / Rebates (Deductible):", self.savings)
         
         # Taxes & Retention calculations
         self.retention_check = QCheckBox("Apply 10% Retention Deduction")
@@ -1121,6 +1554,7 @@ class AddPaymentDialog(BaseFormDialog):
                 self.due_date.setDate(QDate.fromString(dd_val, "yyyy-MM-dd"))
                 
             self.gross_amt.setValue(self.payment_data.get("payment_amount_gross", 0.0))
+            self.savings.setValue(self.payment_data.get("savings_unperformed_rebates", 0.0))
             
             ewt1 = self.payment_data.get("ewt_1_goods", 0.0)
             ewt2 = self.payment_data.get("ewt_2_services", 0.0)
@@ -1192,7 +1626,8 @@ class AddPaymentDialog(BaseFormDialog):
         ewt = gross * ewt_rate
         vat = gross * vat_rate
         retention = gross * ret_rate
-        net = gross - (ewt + vat + retention)
+        savings = self.savings.value()
+        net = gross - (ewt + vat + retention) - savings
         
         self.ewt_lbl.setText(f"₱{ewt:,.2f}")
         self.vat_lbl.setText(f"₱{vat:,.2f}")
@@ -1217,12 +1652,13 @@ class AddPaymentDialog(BaseFormDialog):
         vat = gross * 0.05 if tax_idx in [0, 1] else 0.0
         ret_rate = 0.1 if self.retention_check.isChecked() else 0.0
         ret_fee = gross * ret_rate
-        net = gross - (ewt_1 + ewt_2 + vat + ret_fee)
+        savings = self.savings.value()
+        net = gross - (ewt_1 + ewt_2 + vat + ret_fee) - savings
         
         if self.payment_data:
             success, result = database_config.update_payment(
                 self.payment_data["id"], self.pay_type.currentText(), self.terms.text().strip(),
-                self.due_date.date().toString("yyyy-MM-dd"), gross, 0.0,
+                self.due_date.date().toString("yyyy-MM-dd"), gross, savings,
                 ewt_1, ewt_2, 0.0, vat, ret_rate, ret_fee, net,
                 self.status.currentText(), self.dv_no.text().strip(), self.ada_no.text().strip(),
                 self.check_date.date().toString("yyyy-MM-dd"), net
@@ -1231,7 +1667,7 @@ class AddPaymentDialog(BaseFormDialog):
         else:
             success, result = database_config.add_payment(
                 self.contract_id, deliv_id, self.pay_type.currentText(), self.terms.text().strip(),
-                self.due_date.date().toString("yyyy-MM-dd"), gross, 0.0,
+                self.due_date.date().toString("yyyy-MM-dd"), gross, savings,
                 ewt_1, ewt_2, 0.0, vat, ret_rate, ret_fee, net,
                 self.status.currentText(), self.dv_no.text().strip(), self.ada_no.text().strip(),
                 self.check_date.date().toString("yyyy-MM-dd"), net
@@ -1249,11 +1685,25 @@ class AddWarrantyDialog(BaseFormDialog):
         super().__init__(parent)
         self.contract_id = contract_id
         self.warranty_data = warranty_data
+        self.warranty_file_path = None
+        
+        self.project_id = None
+        try:
+            conn = database_config.get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT project_id FROM contracts WHERE contract_id = ?", (self.contract_id,))
+            row = cur.fetchone()
+            if row:
+                self.project_id = row["project_id"]
+            conn.close()
+        except Exception as e:
+            print(f"Error resolving project_id in AddWarrantyDialog: {e}")
+            
         if self.warranty_data:
-            self.setWindowTitle("Phase 6: Edit Warranty details")
+            self.setWindowTitle("Phase 4: Edit Warranty details")
         else:
-            self.setWindowTitle("Phase 6: Add Warranty details")
-        self.resize(440, 380)
+            self.setWindowTitle("Phase 4: Add Warranty details")
+        self.resize(440, 440)
         self.setup_ui()
         
     def setup_ui(self):
@@ -1303,6 +1753,16 @@ class AddWarrantyDialog(BaseFormDialog):
         self.coa_claim.setChecked(False)
         form.addRow("COA Claims Petition:", self.coa_claim)
         
+        # Warranty Certificate PDF File Uploader layout
+        self.warranty_lbl = QLabel("<i>No Warranty Certificate PDF Uploaded</i>")
+        self.warranty_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
+        w_btn = QPushButton("Browse...")
+        w_btn.clicked.connect(self.browse_warranty)
+        w_layout = QHBoxLayout()
+        w_layout.addWidget(self.warranty_lbl)
+        w_layout.addWidget(w_btn)
+        form.addRow("Warranty Certificate PDF:", w_layout)
+        
         # Populate if editing
         if self.warranty_data:
             s_date = self.warranty_data.get("start_of_warranty_period", "")
@@ -1325,6 +1785,21 @@ class AddWarrantyDialog(BaseFormDialog):
                 self.release_date.setEnabled(True)
                 
             self.coa_claim.setChecked(self.warranty_data.get("with_petition_for_coa_claims") == 1)
+            
+            # Load existing document from SQLite
+            try:
+                import os
+                conn = database_config.get_db_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT warranty_certificate_pdf FROM warranties WHERE contract_id = ?", (self.contract_id,))
+                row = cur.fetchone()
+                if row and row["warranty_certificate_pdf"]:
+                    self.warranty_file_path = row["warranty_certificate_pdf"]
+                    self.warranty_lbl.setText("📄 " + os.path.basename(self.warranty_file_path))
+                    self.warranty_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                conn.close()
+            except Exception as e:
+                print(f"Error loading existing warranty document: {e}")
             
         layout.addLayout(form)
         layout.addSpacing(15)
@@ -1358,6 +1833,14 @@ class AddWarrantyDialog(BaseFormDialog):
         expected = start.addMonths(m)
         self.end_date_lbl.setText(expected.toString("yyyy-MM-dd"))
         
+    def browse_warranty(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Warranty Certificate (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
+        if file_path:
+            import os
+            self.warranty_lbl.setText("📄 " + os.path.basename(file_path))
+            self.warranty_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+            self.warranty_file_path = file_path
+            
     def submit_data(self):
         if not self.validate_inputs():
             self.security.setFocus()
@@ -1383,90 +1866,31 @@ class AddWarrantyDialog(BaseFormDialog):
             action_name = "saved"
             
         if success:
+            if self.warranty_file_path and not self.warranty_file_path.startswith("uploaded_documents/"):
+                if self.project_id:
+                    database_config.save_project_document(self.project_id, "Warranty", self.warranty_file_path)
             QMessageBox.information(self, "Success", f"Warranty and retention security details successfully {action_name}!")
             self.accept()
         else:
             QMessageBox.critical(self, "Error", f"Failed to save warranty details:\n{result}")
 
-class ExportFilterDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Export Procurement Records")
-        self.resize(380, 240)
-        self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
-        self.setup_ui()
-        
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        
-        title = QLabel("Select Export Filters")
-        title.setStyleSheet("font-size: 16px; font-weight: bold; color: #00ffcc; margin-bottom: 15px;")
-        layout.addWidget(title)
-        
-        form = QFormLayout()
-        form.setSpacing(10)
-        
-        self.status_filter = QComboBox()
-        self.status_filter.addItems(["All Statuses", "Initiated", "Bidding", "Contract Awarded", "Delivering", "Under Warranty"])
-        form.addRow("Filter by Status:", self.status_filter)
-        
-        self.division_filter = QComboBox()
-        self.division_filter.addItem("All Divisions")
-        try:
-            projects = database_config.get_projects()
-            divisions = set(p.get("bureau_division_name").strip() for p in projects if p.get("bureau_division_name"))
-            for d in sorted(list(divisions)):
-                self.division_filter.addItem(d)
-        except Exception as e:
-            print(f"Error loading divisions for export dialog: {e}")
-        form.addRow("Filter by Division:", self.division_filter)
-        
-        self.date_filter = QComboBox()
-        self.date_filter.addItems([
-            "All Dates", 
-            "Within 24 hours only", 
-            "Within a week only", 
-            "Within a month only"
-        ])
-        form.addRow("Filter by Timeline:", self.date_filter)
-        
-        layout.addLayout(form)
-        layout.addSpacing(15)
-        
-        btn_layout = QHBoxLayout()
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setStyleSheet(BUTTON_CANCEL_STYLE)
-        cancel_btn.clicked.connect(self.reject)
-        
-        export_btn = QPushButton("Select File & Export")
-        export_btn.setStyleSheet(BUTTON_SUBMIT_STYLE)
-        export_btn.clicked.connect(self.accept)
-        
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addStretch()
-        btn_layout.addWidget(export_btn)
-        layout.addLayout(btn_layout)
-        
-    def get_filters(self):
-        return {
-            "status": self.status_filter.currentText(),
-            "division": self.division_filter.currentText(),
-            "date": self.date_filter.currentText()
-        }
+
 
 class AddSupplierDialog(BaseFormDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, supplier_data=None):
         super().__init__(parent)
-        self.setWindowTitle("Add New Supplier")
+        self.supplier_data = supplier_data
+        self.setWindowTitle("Edit Supplier Details" if self.supplier_data else "Add New Supplier")
         self.resize(420, 380)
         self.setup_ui()
+        if self.supplier_data:
+            self.load_supplier_data()
         
     def setup_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         
-        title = QLabel("Register New Supplier")
+        title = QLabel("Modify Supplier Registry" if self.supplier_data else "Register New Supplier")
         title.setStyleSheet("font-size: 16px; font-weight: bold; color: #00ffcc; margin-bottom: 15px;")
         layout.addWidget(title)
         
@@ -1518,6 +1942,15 @@ class AddSupplierDialog(BaseFormDialog):
         # Initial validation highlight
         self.validate_inputs()
         
+    def load_supplier_data(self):
+        s = self.supplier_data
+        self.name_input.setText(s.get("supplier_name", ""))
+        self.tin_input.setText(s.get("supplier_tin_no", ""))
+        self.addr_input.setText(s.get("supplier_address", ""))
+        self.contact_input.setText(s.get("supplier_contact_details", ""))
+        self.branch_input.setText(s.get("supplier_bank_branch", ""))
+        self.acct_input.setText(s.get("supplier_bank_account_number", ""))
+        
     def validate_inputs(self):
         name_valid = len(self.name_input.text().strip()) > 0
         self.set_field_validation(self.name_input, name_valid)
@@ -1535,9 +1968,16 @@ class AddSupplierDialog(BaseFormDialog):
         branch = self.branch_input.text().strip()
         acct = self.acct_input.text().strip()
         
-        success, result = database_config.add_supplier(name, tin, address, contact, branch, acct)
+        if self.supplier_data:
+            supplier_id = self.supplier_data.get("id")
+            success, result = database_config.update_supplier(supplier_id, name, tin, address, contact, branch, acct)
+            msg = "Supplier details successfully updated!"
+        else:
+            success, result = database_config.add_supplier(name, tin, address, contact, branch, acct)
+            msg = "Supplier details successfully added to directory registry!"
+            
         if success:
-            QMessageBox.information(self, "Success", "Supplier details successfully added to directory registry!")
+            QMessageBox.information(self, "Success", msg)
             self.accept()
         else:
             QMessageBox.critical(self, "Error", f"Failed to save supplier details:\n{result}")

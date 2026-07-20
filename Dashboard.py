@@ -1,6 +1,5 @@
 import sys
 import os
-from pathlib import Path
 from PySide6.QtCore import Qt, QRectF, QDate
 from PySide6.QtGui import QPainter, QColor, QPen, QFont, QKeySequence
 from PySide6.QtWidgets import (
@@ -8,18 +7,106 @@ from PySide6.QtWidgets import (
     QVBoxLayout, QPushButton, QLabel, QFrame, QStackedWidget,
     QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
     QGridLayout, QLineEdit, QMessageBox, QFileDialog, QGroupBox,
-    QDialog, QComboBox, QDateEdit, QCheckBox
+    QDialog, QComboBox, QDateEdit, QCheckBox, QFormLayout, QTabWidget,
+    QSplashScreen, QProgressBar
 )
 
 import database_config
 import Cardsystem
-import excel_export
 import form_dialogs
+
+class PremiumSplashScreen(QSplashScreen):
+    def __init__(self):
+        super().__init__()
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setFixedSize(500, 300)
+        
+        # Main layout frame
+        self.frame = QFrame(self)
+        self.frame.setGeometry(0, 0, 500, 300)
+        self.frame.setStyleSheet("""
+            QFrame {
+                background-color: #13131a;
+                border: 1px solid #2b2b36;
+                border-radius: 15px;
+            }
+        """)
+        
+        layout = QVBoxLayout(self.frame)
+        layout.setContentsMargins(30, 40, 30, 30)
+        layout.setSpacing(15)
+        
+        # App Title
+        self.title_lbl = QLabel("NEXUS PROCUREMENT")
+        self.title_lbl.setStyleSheet("""
+            QLabel {
+                color: #00ffcc;
+                font-size: 26px;
+                font-weight: bold;
+                font-family: 'Montserrat', 'Arial';
+                background: transparent;
+                border: none;
+            }
+        """)
+        self.title_lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.title_lbl)
+        
+        # Subtitle
+        self.subtitle_lbl = QLabel("Payment & Contract Tracking System")
+        self.subtitle_lbl.setStyleSheet("""
+            QLabel {
+                color: #a0a0b0;
+                font-size: 13px;
+                background: transparent;
+                border: none;
+            }
+        """)
+        self.subtitle_lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.subtitle_lbl)
+        
+        layout.addStretch()
+        
+        # Progress status text
+        self.status_lbl = QLabel("Initializing system components...")
+        self.status_lbl.setStyleSheet("""
+            QLabel {
+                color: #8c8c9a;
+                font-size: 11px;
+                background: transparent;
+                border: none;
+            }
+        """)
+        self.status_lbl.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.status_lbl)
+        
+        # Progress Bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: #1e1e24;
+                border: none;
+                border-radius: 3px;
+            }
+            QProgressBar::chunk {
+                background-color: #00ffcc;
+                border-radius: 3px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
+        
+    def set_progress(self, val, status_text):
+        self.progress_bar.setValue(val)
+        self.status_lbl.setText(status_text)
+        QApplication.processEvents()
 
 class StatCard(QFrame):
     """A custom widget representing a metric card."""
     def __init__(self, title, value, color_hex):
         super().__init__()
+        self.color_hex = color_hex
         self.setStyleSheet(f"""
             QFrame {{
                 background-color: #2b2b36;
@@ -72,11 +159,22 @@ class SimpleChart(QWidget):
         if not self.data:
             return
             
+        import database_config
+        theme = database_config.get_theme_setting()
+        if theme == "light":
+            grid_color = QColor("#cbd5e1")
+            text_color = QColor("#64748b")
+            accent_color = QColor("#0284c7")
+        else:
+            grid_color = QColor("#3a3a4a")
+            text_color = QColor("#a0a0b0")
+            accent_color = QColor("#00ffcc")
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
         # Draw background grid
-        painter.setPen(QPen(QColor("#3a3a4a"), 1, Qt.DashLine))
+        painter.setPen(QPen(grid_color, 1, Qt.DashLine))
         for i in range(1, 4):
             y = int(self.height() * (i / 4))
             painter.drawLine(40, y, self.width() - 20, y)
@@ -93,27 +191,27 @@ class SimpleChart(QWidget):
             points.append((x, y))
             
             # X Labels
-            painter.setPen(QColor("#a0a0b0"))
+            painter.setPen(text_color)
             painter.setFont(QFont("Arial", 8))
             painter.drawText(x - 20, self.height() - 15, self.labels[i])
             
             # Y value label
-            painter.setPen(QColor("#00ffcc"))
+            painter.setPen(accent_color)
             painter.setFont(QFont("Arial", 8))
             painter.drawText(x - 20, y - 10, f"₱{val/1000:,.0f}k")
 
         # Draw the line graph
-        painter.setPen(QPen(QColor("#00ffcc"), 3, Qt.SolidLine))
+        painter.setPen(QPen(accent_color, 3, Qt.SolidLine))
         if len(points) > 1:
             for i in range(len(points) - 1):
                 painter.drawLine(points[i][0], points[i][1], points[i+1][0], points[i+1][1])
         else:
-            painter.setBrush(QColor("#00ffcc"))
+            painter.setBrush(accent_color)
             painter.drawEllipse(points[0][0] - 6, points[0][1] - 6, 12, 12)
             
         # Draw data nodes
         painter.setBrush(QColor("#ffffff"))
-        painter.setPen(QPen(QColor("#00ffcc"), 2))
+        painter.setPen(QPen(accent_color, 2))
         for pt in points:
             painter.drawEllipse(pt[0] - 4, pt[1] - 4, 8, 8)
 
@@ -133,28 +231,51 @@ class Dashboard(QMainWindow):
         main_layout.setSpacing(0)
         
         # ---- SIDEBAR ----
-        sidebar = QWidget()
-        sidebar.setFixedWidth(200)
-        sidebar.setStyleSheet("background-color: #13131a; border-right: 1px solid #2b2b36;")
-        sidebar_layout = QVBoxLayout(sidebar)
+        self.sidebar = QWidget()
+        self.sidebar.setFixedWidth(200)
+        self.sidebar.setStyleSheet("background-color: #13131a; border-right: 1px solid #2b2b36;")
+        sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setContentsMargins(10, 20, 10, 20)
         
-        app_title = QLabel("NEXUS PTP")
-        app_title.setStyleSheet("""
+        # Header Layout containing title and collapse button
+        header_h_layout = QHBoxLayout()
+        header_h_layout.setContentsMargins(5, 0, 5, 0)
+        
+        self.app_title = QLabel("NEXUS PTP")
+        self.app_title.setStyleSheet("""
             font-size: 18px; 
             font-weight: bold; 
-            margin-bottom: 20px; 
-            color: #00ffcc; 
-            padding-left: 10px;
+            color: #00ffcc;
         """)
-        sidebar_layout.addWidget(app_title)
+        header_h_layout.addWidget(self.app_title)
+        
+        self.sidebar_toggle_btn = QPushButton("☰")
+        self.sidebar_toggle_btn.setFixedSize(30, 30)
+        self.sidebar_toggle_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #00ffcc;
+                font-size: 16px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #2b2b36;
+            }
+        """)
+        self.sidebar_toggle_btn.clicked.connect(self.toggle_sidebar)
+        header_h_layout.addWidget(self.sidebar_toggle_btn)
+        
+        sidebar_layout.addLayout(header_h_layout)
+        sidebar_layout.addSpacing(15)
         
         self.nav_buttons = []
         nav_items = [
             ("📊 Overview", 0),
             ("🗂️ Project Cards", 1),
             ("👥 Suppliers List", 2),
-            ("🛠️ Tools & Export", 3)
+            ("⚙️ Settings", 3)
         ]
         
         for item, idx in nav_items:
@@ -179,7 +300,13 @@ class Dashboard(QMainWindow):
             sidebar_layout.addWidget(btn)
             
         sidebar_layout.addStretch()
-        main_layout.addWidget(sidebar)
+        
+        # 🚪 Exit Button at the bottom of the sidebar
+        self.exit_btn = QPushButton("🚪 Exit")
+        self.exit_btn.clicked.connect(self.close)
+        sidebar_layout.addWidget(self.exit_btn)
+        
+        main_layout.addWidget(self.sidebar)
         
         # ---- STACKED CONTENT CENTRAL AREA ----
         self.stacked_widget = QStackedWidget()
@@ -228,24 +355,24 @@ class Dashboard(QMainWindow):
         
         # Header Row
         header_layout = QHBoxLayout()
-        header_title = QLabel("System Overview")
-        header_title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        header_layout.addWidget(header_title)
+        self.header_title = QLabel("System Overview")
+        self.header_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        header_layout.addWidget(self.header_title)
         header_layout.addStretch()
         
-        create_project_btn = QPushButton("➕ Create Project")
-        create_project_btn.setStyleSheet("""
+        self.create_project_btn = QPushButton("➕ Create Project")
+        self.create_project_btn.setStyleSheet("""
             QPushButton {
                 background-color: #00ffcc; color: #13131a;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
             }
             QPushButton:hover { background-color: #00ccaa; }
         """)
-        create_project_btn.clicked.connect(self.create_new_project)
-        header_layout.addWidget(create_project_btn)
+        self.create_project_btn.clicked.connect(self.create_new_project)
+        header_layout.addWidget(self.create_project_btn)
         
-        export_btn = QPushButton("📂 Export Data")
-        export_btn.setStyleSheet("""
+        self.export_btn = QPushButton("☁️ Sync Sheets")
+        self.export_btn.setStyleSheet("""
             QPushButton {
                 background-color: #1f4e78; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
@@ -253,11 +380,24 @@ class Dashboard(QMainWindow):
             }
             QPushButton:hover { background-color: #1a4063; }
         """)
-        export_btn.clicked.connect(self.export_data)
-        header_layout.addWidget(export_btn)
+        self.export_btn.clicked.connect(self.sync_google_sheets_action)
+        header_layout.addWidget(self.export_btn)
         
-        refresh_btn = QPushButton("Refresh Data")
-        refresh_btn.setStyleSheet("""
+        self.open_sheets_header_btn = QPushButton("🟢 Open Sheets")
+        self.open_sheets_header_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7; color: #ffffff;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                border: none;
+                margin-left: 10px;
+            }
+            QPushButton:hover { background-color: #0369a1; }
+        """)
+        self.open_sheets_header_btn.clicked.connect(self.open_google_sheet_in_browser)
+        header_layout.addWidget(self.open_sheets_header_btn)
+        
+        self.refresh_btn = QPushButton("Refresh Data")
+        self.refresh_btn.setStyleSheet("""
             QPushButton {
                 background-color: #3a3a4a; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
@@ -266,8 +406,8 @@ class Dashboard(QMainWindow):
             }
             QPushButton:hover { background-color: #4a4a5a; }
         """)
-        refresh_btn.clicked.connect(self.refresh_all_data)
-        header_layout.addWidget(refresh_btn)
+        self.refresh_btn.clicked.connect(self.refresh_all_data)
+        header_layout.addWidget(self.refresh_btn)
         overview_layout.addLayout(header_layout)
         
         # Stats Cards
@@ -295,9 +435,9 @@ class Dashboard(QMainWindow):
         timeline_p_layout = QVBoxLayout(self.timeline_panel)
         timeline_p_layout.setContentsMargins(15, 15, 15, 15)
         
-        timeline_title = QLabel("📅 Project Schedule & Action Tracker")
-        timeline_title.setStyleSheet("color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 8px;")
-        timeline_p_layout.addWidget(timeline_title)
+        self.timeline_title = QLabel("📅 Project Schedule & Action Tracker")
+        self.timeline_title.setStyleSheet("color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 8px;")
+        timeline_p_layout.addWidget(self.timeline_title)
         
         self.timeline_list_layout = QVBoxLayout()
         self.timeline_list_layout.setSpacing(6)
@@ -318,9 +458,9 @@ class Dashboard(QMainWindow):
         stats_layout.setContentsMargins(15, 15, 15, 15)
         stats_layout.setSpacing(12)
         
-        stats_title = QLabel("📊 Financial Savings & Supplier Directory")
-        stats_title.setStyleSheet("color: #00ffcc; font-size: 14px; font-weight: bold;")
-        stats_layout.addWidget(stats_title)
+        self.stats_title = QLabel("📊 Financial Savings & Supplier Directory")
+        self.stats_title.setStyleSheet("color: #00ffcc; font-size: 14px; font-weight: bold;")
+        stats_layout.addWidget(self.stats_title)
         
         # Financial rows layout
         self.savings_lbl = QLabel("Savings Amount: ₱0.00 (0.00%)")
@@ -332,16 +472,16 @@ class Dashboard(QMainWindow):
         stats_layout.addWidget(self.balance_lbl)
         
         # Horizontal line spacer
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setFrameShadow(QFrame.Sunken)
-        sep.setStyleSheet("background-color: #3a3a4a; max-height: 1px; border: none;")
-        stats_layout.addWidget(sep)
+        self.sep = QFrame()
+        self.sep.setFrameShape(QFrame.HLine)
+        self.sep.setFrameShadow(QFrame.Sunken)
+        self.sep.setStyleSheet("background-color: #3a3a4a; max-height: 1px; border: none;")
+        stats_layout.addWidget(self.sep)
         
         # Leaderboard title
-        leaderboard_title = QLabel("🏆 Top Supplier Leaderboard")
-        leaderboard_title.setStyleSheet("color: #00ffcc; font-size: 12px; font-weight: bold;")
-        stats_layout.addWidget(leaderboard_title)
+        self.leaderboard_title = QLabel("🏆 Top Supplier Leaderboard")
+        self.leaderboard_title.setStyleSheet("color: #00ffcc; font-size: 12px; font-weight: bold;")
+        stats_layout.addWidget(self.leaderboard_title)
         
         self.leaderboard_layout = QVBoxLayout()
         self.leaderboard_layout.setSpacing(4)
@@ -356,16 +496,16 @@ class Dashboard(QMainWindow):
         table_panel = QVBoxLayout()
         
         table_header_layout = QHBoxLayout()
-        table_label = QLabel("Active Procurement Projects")
-        table_label.setStyleSheet("font-size: 14px; font-weight: bold;")
-        table_header_layout.addWidget(table_label)
+        self.table_label = QLabel("Active Procurement Projects")
+        self.table_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        table_header_layout.addWidget(self.table_label)
         table_header_layout.addStretch()
         
         # Overview Filters
-        status_lbl = QLabel("Status:")
-        status_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px;")
+        self.status_lbl = QLabel("Status:")
+        self.status_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px;")
         self.overview_status_filter = QComboBox()
-        self.overview_status_filter.addItems(["All Statuses", "Initiated", "Bidding", "Contract Awarded", "Delivering", "Under Warranty"])
+        self.overview_status_filter.addItems(["All Statuses", "Planning & Bidding", "Contract Awarded", "Deliveries & Payments", "Under Warranty"])
         self.overview_status_filter.setStyleSheet("""
             QComboBox {
                 background-color: #2b2b36; color: #ffffff; border: 1px solid #3a3a4a;
@@ -374,8 +514,8 @@ class Dashboard(QMainWindow):
         """)
         self.overview_status_filter.currentIndexChanged.connect(self.apply_filters_and_refresh)
         
-        div_lbl = QLabel("Division:")
-        div_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; margin-left: 10px;")
+        self.div_lbl = QLabel("Division:")
+        self.div_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; margin-left: 10px;")
         self.overview_division_filter = QComboBox()
         self.overview_division_filter.addItem("All Divisions")
         self.overview_division_filter.setStyleSheet("""
@@ -386,8 +526,8 @@ class Dashboard(QMainWindow):
         """)
         self.overview_division_filter.currentIndexChanged.connect(self.apply_filters_and_refresh)
         
-        date_lbl = QLabel("Timeline:")
-        date_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; margin-left: 10px;")
+        self.date_lbl = QLabel("Timeline:")
+        self.date_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; margin-left: 10px;")
         self.overview_date_filter = QComboBox()
         self.overview_date_filter.addItems([
             "All Dates", 
@@ -405,11 +545,11 @@ class Dashboard(QMainWindow):
         """)
         self.overview_date_filter.currentIndexChanged.connect(self.apply_filters_and_refresh)
         
-        table_header_layout.addWidget(status_lbl)
+        table_header_layout.addWidget(self.status_lbl)
         table_header_layout.addWidget(self.overview_status_filter)
-        table_header_layout.addWidget(div_lbl)
+        table_header_layout.addWidget(self.div_lbl)
         table_header_layout.addWidget(self.overview_division_filter)
-        table_header_layout.addWidget(date_lbl)
+        table_header_layout.addWidget(self.date_lbl)
         table_header_layout.addWidget(self.overview_date_filter)
         
         table_panel.addLayout(table_header_layout)
@@ -443,13 +583,13 @@ class Dashboard(QMainWindow):
         cards_page_layout.setContentsMargins(30, 20, 30, 30)
         
         cards_header = QHBoxLayout()
-        cards_title = QLabel("Project Progression Cards")
-        cards_title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        cards_header.addWidget(cards_title)
+        self.cards_title = QLabel("Project Progression Cards")
+        self.cards_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        cards_header.addWidget(self.cards_title)
         cards_header.addStretch()
         
-        create_project_btn_cards = QPushButton("➕ Create Project")
-        create_project_btn_cards.setStyleSheet("""
+        self.create_project_btn_cards = QPushButton("➕ Create Project")
+        self.create_project_btn_cards.setStyleSheet("""
             QPushButton {
                 background-color: #00ffcc; color: #13131a;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
@@ -457,11 +597,11 @@ class Dashboard(QMainWindow):
             }
             QPushButton:hover { background-color: #00ccaa; }
         """)
-        create_project_btn_cards.clicked.connect(self.create_new_project)
-        cards_header.addWidget(create_project_btn_cards)
+        self.create_project_btn_cards.clicked.connect(self.create_new_project)
+        cards_header.addWidget(self.create_project_btn_cards)
         
-        export_btn_cards = QPushButton("📂 Export Data")
-        export_btn_cards.setStyleSheet("""
+        self.export_btn_cards = QPushButton("☁️ Sync Sheets")
+        self.export_btn_cards.setStyleSheet("""
             QPushButton {
                 background-color: #1f4e78; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
@@ -469,12 +609,25 @@ class Dashboard(QMainWindow):
             }
             QPushButton:hover { background-color: #1a4063; }
         """)
-        export_btn_cards.clicked.connect(self.export_data)
-        cards_header.addWidget(export_btn_cards)
+        self.export_btn_cards.clicked.connect(self.sync_google_sheets_action)
+        cards_header.addWidget(self.export_btn_cards)
+        
+        self.open_sheets_header_btn_cards = QPushButton("🟢 Open Sheets")
+        self.open_sheets_header_btn_cards.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7; color: #ffffff;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                border: none;
+                margin-right: 15px;
+            }
+            QPushButton:hover { background-color: #0369a1; }
+        """)
+        self.open_sheets_header_btn_cards.clicked.connect(self.open_google_sheet_in_browser)
+        cards_header.addWidget(self.open_sheets_header_btn_cards)
         
         # Cards Page Filters
         self.cards_status_filter = QComboBox()
-        self.cards_status_filter.addItems(["All Statuses", "Initiated", "Bidding", "Contract Awarded", "Delivering", "Under Warranty"])
+        self.cards_status_filter.addItems(["All Statuses", "Planning & Bidding", "Contract Awarded", "Deliveries & Payments", "Under Warranty"])
         self.cards_status_filter.setStyleSheet("""
             QComboBox {
                 background-color: #2b2b36; color: #ffffff; border: 1px solid #3a3a4a;
@@ -556,9 +709,9 @@ class Dashboard(QMainWindow):
         suppliers_layout.setContentsMargins(30, 20, 30, 30)
         
         sup_header_layout = QHBoxLayout()
-        sup_title = QLabel("Supplier Directory & Bank Details")
-        sup_title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        sup_header_layout.addWidget(sup_title)
+        self.sup_title = QLabel("Supplier Directory & Bank Details")
+        self.sup_title.setStyleSheet("font-size: 24px; font-weight: bold;")
+        sup_header_layout.addWidget(self.sup_title)
         sup_header_layout.addStretch()
         
         add_sup_btn = QPushButton("➕ Add Supplier")
@@ -571,6 +724,31 @@ class Dashboard(QMainWindow):
         """)
         add_sup_btn.clicked.connect(self.create_new_supplier)
         sup_header_layout.addWidget(add_sup_btn)
+        
+        edit_sup_btn = QPushButton("📝 Edit Supplier")
+        edit_sup_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1f4e78; color: #ffffff;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                margin-left: 10px;
+            }
+            QPushButton:hover { background-color: #1a4063; }
+        """)
+        edit_sup_btn.clicked.connect(self.edit_selected_supplier)
+        sup_header_layout.addWidget(edit_sup_btn)
+        
+        delete_sup_btn = QPushButton("🗑️ Delete Supplier")
+        delete_sup_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #5c1d1d; color: #ff9999;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                margin-left: 10px; border: 1px solid #8c2d2d;
+            }
+            QPushButton:hover { background-color: #7c2d2d; color: #ffffff; }
+        """)
+        delete_sup_btn.clicked.connect(self.delete_selected_supplier)
+        sup_header_layout.addWidget(delete_sup_btn)
+        
         suppliers_layout.addLayout(sup_header_layout)
         
         self.suppliers_table = QTableWidget()
@@ -579,105 +757,715 @@ class Dashboard(QMainWindow):
             "Supplier Name", "TIN No", "Address", "Contact Info", "Bank Branch", "Account Number"
         ])
         self.suppliers_table.setStyleSheet(table_style)
-        self.suppliers_table.setSelectionBehavior(QTableWidget.SelectItems)
-        self.suppliers_table.setSelectionMode(QTableWidget.ExtendedSelection)
-        self.suppliers_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.suppliers_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.suppliers_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.suppliers_table.setEditTriggers(QTableWidget.DoubleClicked | QTableWidget.EditKeyPressed)
+        self.suppliers_table.itemChanged.connect(self.on_supplier_cell_edited)
         self.suppliers_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         self.suppliers_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         
         suppliers_layout.addWidget(self.suppliers_table)
         self.stacked_widget.addWidget(suppliers_page)
         
-        # 4. TOOLS & SETTINGS PAGE
-        tools_page = QWidget()
-        tools_layout = QVBoxLayout(tools_page)
-        tools_layout.setContentsMargins(30, 20, 30, 30)
-        tools_layout.setSpacing(20)
+        # 4. SYSTEM SETTINGS & TOOLS PAGE
+        settings_page = QWidget()
+        settings_layout = QVBoxLayout(settings_page)
+        settings_layout.setContentsMargins(30, 20, 30, 30)
+        settings_layout.setSpacing(20)
         
-        tools_title = QLabel("System Tools & Settings")
-        tools_title.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 10px;")
-        tools_layout.addWidget(tools_title)
+        self.settings_title = QLabel("System Settings & Tools")
+        self.settings_title.setStyleSheet("font-size: 24px; font-weight: bold; margin-bottom: 10px;")
+        settings_layout.addWidget(self.settings_title)
         
-
+        # Theme Settings Box
+        self.theme_box = QGroupBox("Appearance & Theme")
+        self.theme_box.setObjectName("ThemeBox")
+        theme_box_layout = QVBoxLayout(self.theme_box)
+        
+        self.theme_desc = QLabel("Customize the visual appearance of the application. Toggle between a sleek dark theme or a bright light theme.")
+        self.theme_desc.setWordWrap(True)
+        theme_box_layout.addWidget(self.theme_desc)
+        
+        theme_btn_layout = QHBoxLayout()
+        self.btn_dark_theme = QPushButton("🌙 Dark Mode")
+        self.btn_dark_theme.setCheckable(True)
+        self.btn_dark_theme.setFixedHeight(35)
+        self.btn_dark_theme.setFixedWidth(150)
+        self.btn_dark_theme.clicked.connect(lambda: self.change_theme("dark"))
+        
+        self.btn_light_theme = QPushButton("☀️ Light Mode")
+        self.btn_light_theme.setCheckable(True)
+        self.btn_light_theme.setFixedHeight(35)
+        self.btn_light_theme.setFixedWidth(150)
+        self.btn_light_theme.clicked.connect(lambda: self.change_theme("light"))
+        
+        theme_btn_layout.addWidget(self.btn_dark_theme)
+        theme_btn_layout.addWidget(self.btn_light_theme)
+        theme_btn_layout.addStretch()
+        theme_box_layout.addLayout(theme_btn_layout)
+        settings_layout.addWidget(self.theme_box)
+        
+        # Google API Settings Box
+        self.google_box = QGroupBox("Google Sheets & Drive Integration")
+        self.google_box.setObjectName("GoogleBox")
+        google_box_layout = QVBoxLayout(self.google_box)
+        
+        self.google_desc = QLabel("Sync local records dynamically with Google Sheets and upload attachments to Google Drive.")
+        self.google_desc.setStyleSheet("color: #a0a0b0; font-size: 11px;")
+        google_box_layout.addWidget(self.google_desc)
+        
+        form_layout = QFormLayout()
+        form_layout.setSpacing(10)
+        
+        # Credentials File Path Row
+        creds_h_layout = QHBoxLayout()
+        self.creds_input = QLineEdit()
+        self.creds_input.setReadOnly(True)
+        self.creds_input.setPlaceholderText("Select credentials.json file secrets path...")
+        btn_browse_creds = QPushButton("Browse...")
+        btn_browse_creds.setStyleSheet("""
+            QPushButton {
+                background-color: #3a3a4a; color: #ffffff;
+                font-weight: bold; border-radius: 4px; padding: 5px 12px;
+            }
+            QPushButton:hover { background-color: #4a4a5a; }
+        """)
+        btn_browse_creds.clicked.connect(self.browse_google_credentials)
+        creds_h_layout.addWidget(self.creds_input)
+        creds_h_layout.addWidget(btn_browse_creds)
+        form_layout.addRow("OAuth Client Secrets (JSON):", creds_h_layout)
+        
+        # Spreadsheet ID Row
+        sheet_h_layout = QHBoxLayout()
+        self.sheet_id_input = QLineEdit()
+        self.sheet_id_input.setPlaceholderText("Paste Google Spreadsheet ID (or leave blank to create)...")
+        self.sheet_id_input.textChanged.connect(self.on_google_config_changed)
+        
+        self.btn_open_sheet = QPushButton("🔗 Open Sheet")
+        self.btn_open_sheet.clicked.connect(self.open_google_sheet_in_browser)
+        
+        btn_create_sheet = QPushButton("Create New")
+        btn_create_sheet.setStyleSheet("""
+            QPushButton {
+                background-color: #1f4e78; color: #ffffff;
+                font-weight: bold; border-radius: 4px; padding: 5px 12px;
+                border: none;
+            }
+            QPushButton:hover { background-color: #1a4063; }
+        """)
+        btn_create_sheet.clicked.connect(self.create_new_google_sheet)
+        sheet_h_layout.addWidget(self.sheet_id_input)
+        sheet_h_layout.addWidget(self.btn_open_sheet)
+        sheet_h_layout.addWidget(btn_create_sheet)
+        form_layout.addRow("Google Spreadsheet ID:", sheet_h_layout)
+        
+        # Folder ID Row
+        folder_h_layout = QHBoxLayout()
+        self.folder_id_input = QLineEdit()
+        self.folder_id_input.setPlaceholderText("Paste Google Drive Folder ID (or leave blank to create)...")
+        self.folder_id_input.textChanged.connect(self.on_google_config_changed)
+        
+        self.btn_open_folder = QPushButton("🔗 Open Folder")
+        self.btn_open_folder.clicked.connect(self.open_google_folder_in_browser)
+        
+        btn_create_folder = QPushButton("Create New")
+        btn_create_folder.setStyleSheet("""
+            QPushButton {
+                background-color: #1f4e78; color: #ffffff;
+                font-weight: bold; border-radius: 4px; padding: 5px 12px;
+                border: none;
+            }
+            QPushButton:hover { background-color: #1a4063; }
+        """)
+        btn_create_folder.clicked.connect(self.create_new_google_folder)
+        folder_h_layout.addWidget(self.folder_id_input)
+        folder_h_layout.addWidget(self.btn_open_folder)
+        folder_h_layout.addWidget(btn_create_folder)
+        form_layout.addRow("Google Drive Folder ID:", folder_h_layout)
+        
+        google_box_layout.addLayout(form_layout)
+        google_box_layout.addSpacing(10)
+        
+        # Sync Action Buttons
+        sync_actions_layout = QHBoxLayout()
+        self.btn_push_sheets = QPushButton("🔄 Push SQLite to Sheets")
+        self.btn_push_sheets.setFixedHeight(35)
+        self.btn_push_sheets.setStyleSheet("""
+            QPushButton {
+                background-color: #00ffcc; color: #13131a;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+            }
+            QPushButton:hover { background-color: #00ccaa; }
+        """)
+        self.btn_push_sheets.clicked.connect(self.push_data_to_sheets)
+        
+        self.btn_pull_sheets = QPushButton("📥 Pull Sheets to SQLite")
+        self.btn_pull_sheets.setFixedHeight(35)
+        self.btn_pull_sheets.setStyleSheet("""
+            QPushButton {
+                background-color: #0284c7; color: #ffffff;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+            }
+            QPushButton:hover { background-color: #0369a1; }
+        """)
+        self.btn_pull_sheets.clicked.connect(self.pull_data_from_sheets)
+        
+        sync_actions_layout.addWidget(self.btn_push_sheets)
+        sync_actions_layout.addWidget(self.btn_pull_sheets)
+        sync_actions_layout.addStretch()
+        google_box_layout.addLayout(sync_actions_layout)
         
         # Database Admin Box
-        db_box = QGroupBox("Database Administration")
-        db_box.setStyleSheet("""
-            QGroupBox {
-                border: 1px solid #3a3a4a;
-                border-radius: 8px;
-                padding: 15px;
-                font-weight: bold;
-                color: #ff6666;
-                font-size: 14px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-        """)
-        db_layout = QVBoxLayout(db_box)
-        db_desc = QLabel("Reset the system database to its original state. This deletes all custom records and refills the local SQLite file with default sample projects, contracts, suppliers, payments, and warranty metrics.")
-        db_desc.setWordWrap(True)
-        db_desc.setStyleSheet("color: #a0a0b0; font-size: 12px; margin-bottom: 10px;")
-        db_layout.addWidget(db_desc)
+        self.db_box = QGroupBox("Database Administration")
+        self.db_box.setObjectName("DbBox")
+        db_layout = QVBoxLayout(self.db_box)
+        self.db_desc = QLabel("Reset the system database to its original state. This deletes all custom records and refills the local SQLite file with default sample projects, contracts, suppliers, payments, and warranty metrics.")
+        self.db_desc.setWordWrap(True)
+        db_layout.addWidget(self.db_desc)
         
-        reseed_btn = QPushButton("⚠️ Re-Seed System Database")
-        reseed_btn.setStyleSheet("""
+        self.reseed_btn = QPushButton("⚠️ Re-Seed System Database")
+        self.reseed_btn.setStyleSheet("""
             QPushButton {
                 background-color: #ff6666; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 10px 20px;
                 font-size: 13px;
                 max-width: 250px;
+                border: none;
             }
             QPushButton:hover { background-color: #cc4444; }
         """)
-        reseed_btn.clicked.connect(self.reseed_database)
-        db_layout.addWidget(reseed_btn)
-        tools_layout.addWidget(db_box)
+        self.reseed_btn.clicked.connect(self.reseed_database)
+        db_layout.addWidget(self.reseed_btn)
+
+        # Google Account Status Group Box
+        self.account_box = QGroupBox("Google Account Authentication")
+        self.account_box.setObjectName("AccountBox")
+        account_box_layout = QVBoxLayout(self.account_box)
         
-        tools_layout.addStretch()
-        self.stacked_widget.addWidget(tools_page)
+        self.status_desc = QLabel("Authenticate your Google Account to connect with sheets and drive APIs.")
+        self.status_desc.setStyleSheet("color: #a0a0b0; font-size: 11px;")
+        account_box_layout.addWidget(self.status_desc)
+        
+        status_form = QFormLayout()
+        status_form.setSpacing(10)
+        
+        self.lbl_auth_status = QLabel("Disconnected")
+        self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #ff6666;")
+        status_form.addRow("Connection Status:", self.lbl_auth_status)
+        
+        self.lbl_auth_email = QLabel("Not Logged In")
+        self.lbl_auth_email.setStyleSheet("font-weight: bold;")
+        status_form.addRow("Google Account Email:", self.lbl_auth_email)
+        
+        account_box_layout.addLayout(status_form)
+        account_box_layout.addSpacing(10)
+        
+        account_btns_layout = QHBoxLayout()
+        self.btn_connect_google = QPushButton("🔑 Connect Account")
+        self.btn_connect_google.setFixedHeight(35)
+        self.btn_connect_google.setStyleSheet("""
+            QPushButton {
+                background-color: #00ffcc; color: #13131a;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+            }
+            QPushButton:hover { background-color: #00ccaa; }
+        """)
+        self.btn_connect_google.clicked.connect(self.connect_google_account)
+        
+        self.btn_disconnect_google = QPushButton("🔌 Disconnect Account")
+        self.btn_disconnect_google.setFixedHeight(35)
+        self.btn_disconnect_google.setStyleSheet("""
+            QPushButton {
+                background-color: #ff6666; color: #ffffff;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                border: none;
+            }
+            QPushButton:hover { background-color: #cc4444; }
+        """)
+        self.btn_disconnect_google.clicked.connect(self.disconnect_google_account)
+        
+        account_btns_layout.addWidget(self.btn_connect_google)
+        account_btns_layout.addWidget(self.btn_disconnect_google)
+        account_btns_layout.addStretch()
+        account_box_layout.addLayout(account_btns_layout)
+
+        # Create Tab Widget
+        self.settings_tabs = QTabWidget()
+        self.settings_tabs.setObjectName("SettingsTabs")
+        
+        # Tab 1: Appearance & Database
+        general_tab = QWidget()
+        general_layout = QVBoxLayout(general_tab)
+        general_layout.setContentsMargins(15, 15, 15, 15)
+        general_layout.setSpacing(15)
+        general_layout.addWidget(self.theme_box)
+        general_layout.addWidget(self.db_box)
+        general_layout.addStretch()
+        
+        # Tab 2: Google Account & Synchronization
+        google_tab = QWidget()
+        google_layout = QVBoxLayout(google_tab)
+        google_layout.setContentsMargins(15, 15, 15, 15)
+        google_layout.setSpacing(15)
+        google_layout.addWidget(self.account_box)
+        google_layout.addWidget(self.google_box)
+        google_layout.addStretch()
+        
+        # Add tabs
+        self.settings_tabs.addTab(general_tab, "🎨 General & Theme")
+        self.settings_tabs.addTab(google_tab, "☁️ Google Sync & Account")
+        
+        settings_layout.addWidget(self.settings_tabs)
+        self.stacked_widget.addWidget(settings_page)
         
         main_layout.addWidget(self.stacked_widget)
+        
+        # Load theme setting from DB and apply it
+        import database_config
+        self.current_theme = database_config.get_theme_setting()
+        
+        # Load Google Integration configuration
+        self.creds_input.setText(database_config.get_system_setting("google_credentials_path", ""))
+        self.sheet_id_input.setText(database_config.get_system_setting("google_spreadsheet_id", ""))
+        self.folder_id_input.setText(database_config.get_system_setting("google_drive_folder_id", ""))
+        
+        self.refresh_google_account_status()
+        self.update_theme_styles()
+        
+        # Auto-initialize Google sheets/drive if credentials exist but sheets/drive is empty
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(100, self.perform_google_auto_setup)
         
         # Set active page highlights
         self.switch_page(0)
         self.refresh_all_data()
 
+    def toggle_sidebar(self):
+        is_collapsed = getattr(self, "sidebar_collapsed", False)
+        if not is_collapsed:
+            self.sidebar.setFixedWidth(60)
+            self.app_title.setVisible(False)
+            self.sidebar_collapsed = True
+        else:
+            self.sidebar.setFixedWidth(200)
+            self.app_title.setVisible(True)
+            self.sidebar_collapsed = False
+        self.update_theme_styles()
+
     def switch_page(self, index):
         self.stacked_widget.setCurrentIndex(index)
-        for idx, btn in enumerate(self.nav_buttons):
-            if idx == index:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #2b2b36;
-                        color: #00ffcc;
-                        border-left: 3px solid #00ffcc;
-                        border-radius: 0px 5px 5px 0px;
-                        padding: 10px;
-                        text-align: left;
-                        font-size: 14px;
-                        font-weight: bold;
-                    }
-                """)
+        self.update_theme_styles()
+
+    def change_theme(self, theme_name):
+        self.current_theme = theme_name
+        import database_config
+        database_config.update_theme_setting(theme_name)
+        self.update_theme_styles()
+        # Trigger redraw of chart
+        if hasattr(self, "chart"):
+            self.chart.update()
+        self.refresh_all_data()
+
+    def update_theme_styles(self):
+        theme = getattr(self, "current_theme", "dark")
+        
+        # Define palette colors based on theme
+        if theme == "light":
+            c_bg_app = "#f1f5f9"
+            c_bg_sidebar = "#e2e8f0"
+            c_border_sidebar = "#cbd5e1"
+            c_bg_card = "#ffffff"
+            c_border_card = "#cbd5e1"
+            c_text_main = "#0f172a"
+            c_text_muted = "#64748b"
+            c_accent = "#0284c7"
+            c_accent_hover = "#0369a1"
+            c_table_header_bg = "#f1f5f9"
+            c_table_header_text = "#0f172a"
+            c_table_item_selected_bg = "#0284c7"
+            c_table_item_selected_text = "#ffffff"
+        else:
+            c_bg_app = "#1e1e24"
+            c_bg_sidebar = "#13131a"
+            c_border_sidebar = "#2b2b36"
+            c_bg_card = "#2b2b36"
+            c_border_card = "#3a3a4a"
+            c_text_main = "#ffffff"
+            c_text_muted = "#a0a0b0"
+            c_accent = "#00ffcc"
+            c_accent_hover = "#00ccaa"
+            c_table_header_bg = "#13131a"
+            c_table_header_text = "#00ffcc"
+            c_table_item_selected_bg = "#00ffcc"
+            c_table_item_selected_text = "#13131a"
+
+        # Apply main window and sidebar styling
+        self.setStyleSheet(f"background-color: {c_bg_app}; color: {c_text_main};")
+        self.sidebar.setStyleSheet(f"background-color: {c_bg_sidebar}; border-right: 1px solid {c_border_sidebar};")
+        self.app_title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {c_accent};")
+        self.sidebar_toggle_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {c_accent};
+                font-size: 16px;
+                font-weight: bold;
+                border: none;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                background-color: {c_bg_card};
+            }}
+        """)
+
+        # Style Sidebar nav buttons dynamically based on expanded/collapsed state
+        is_collapsed = getattr(self, "sidebar_collapsed", False)
+        nav_items_list = [
+            ("📊 Overview" if not is_collapsed else "📊", 0),
+            ("🗂️ Project Cards" if not is_collapsed else "🗂️", 1),
+            ("👥 Suppliers List" if not is_collapsed else "👥", 2),
+            ("⚙️ Settings" if not is_collapsed else "⚙️", 3)
+        ]
+        
+        for idx, (label, index) in enumerate(nav_items_list):
+            btn = self.nav_buttons[idx]
+            btn.setText(label)
+            active = (idx == self.stacked_widget.currentIndex())
+            if is_collapsed:
+                if active:
+                    btn.setStyleSheet(f"QPushButton {{ background-color: {c_bg_card}; color: {c_accent}; border: none; border-radius: 5px; padding: 10px 0; text-align: center; font-size: 16px; }}")
+                else:
+                    btn.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: none; border-radius: 5px; padding: 10px 0; text-align: center; font-size: 16px; }} QPushButton:hover {{ background-color: {c_bg_card}; color: {c_text_main}; }}")
             else:
-                btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: transparent;
-                        color: #a0a0b0;
-                        border: none;
-                        border-radius: 5px;
-                        padding: 10px;
-                        text-align: left;
-                        font-size: 14px;
-                    }
-                    QPushButton:hover {
-                        background-color: #2b2b36;
-                        color: #ffffff;
-                    }
-                """)
+                if active:
+                    btn.setStyleSheet(f"QPushButton {{ background-color: {c_bg_card}; color: {c_accent}; border-left: 3px solid {c_accent}; border-radius: 0px 5px 5px 0px; padding: 10px; text-align: left; font-size: 14px; font-weight: bold; }}")
+                else:
+                    btn.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: none; border-radius: 5px; padding: 10px; text-align: left; font-size: 14px; }} QPushButton:hover {{ background-color: {c_bg_card}; color: {c_text_main}; }}")
+
+        # Style Exit Button dynamically based on theme and expanded/collapsed state
+        if theme == "light":
+            c_exit_text = "#dc2626"
+            c_exit_hover_bg = "#fee2e2"
+            c_exit_hover_text = "#991b1b"
+        else:
+            c_exit_text = "#ff6666"
+            c_exit_hover_bg = "#4d2222"
+            c_exit_hover_text = "#ff8888"
+            
+        exit_label = "🚪 Exit" if not is_collapsed else "🚪"
+        self.exit_btn.setText(exit_label)
+        if is_collapsed:
+            self.exit_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {c_exit_text};
+                    border: none;
+                    border-radius: 5px;
+                    padding: 10px 0;
+                    text-align: center;
+                    font-size: 16px;
+                }}
+                QPushButton:hover {{
+                    background-color: {c_exit_hover_bg};
+                    color: {c_exit_hover_text};
+                }}
+            """)
+        else:
+            self.exit_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {c_exit_text};
+                    border: none;
+                    border-radius: 5px;
+                    padding: 10px;
+                    text-align: left;
+                    font-size: 14px;
+                }}
+                QPushButton:hover {{
+                    background-color: {c_exit_hover_bg};
+                    color: {c_exit_hover_text};
+                    font-weight: bold;
+                }}
+            """)
+
+        # Overview titles & panels styling
+        self.header_title.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {c_text_main};")
+        self.timeline_panel.setStyleSheet(f"#TimelinePanel {{ background-color: {c_bg_card}; border-radius: 8px; border: 1px solid {c_border_card}; }}")
+        self.timeline_title.setStyleSheet(f"color: {c_accent}; font-size: 14px; font-weight: bold; margin-bottom: 8px; border: none; background: transparent;")
+        
+        self.stats_panel.setStyleSheet(f"#StatsPanel {{ background-color: {c_bg_card}; border-radius: 8px; border: 1px solid {c_border_card}; }}")
+        self.stats_title.setStyleSheet(f"color: {c_accent}; font-size: 14px; font-weight: bold; border: none; background: transparent;")
+        self.savings_lbl.setStyleSheet(f"color: {c_text_main}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        self.balance_lbl.setStyleSheet(f"color: {c_text_main}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        self.sep.setStyleSheet(f"background-color: {c_border_card}; max-height: 1px; border: none;")
+        self.leaderboard_title.setStyleSheet(f"color: {c_accent}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
+        self.table_label.setStyleSheet(f"font-size: 14px; font-weight: bold; color: {c_text_main};")
+        
+        # Action Buttons styling
+        self.create_project_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c_accent}; color: #13131a;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: none;
+            }}
+            QPushButton:hover {{ background-color: {c_accent_hover}; }}
+        """)
+        self.export_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c_bg_sidebar}; color: {c_text_main};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                margin-left: 10px;
+            }}
+            QPushButton:hover {{ background-color: {c_bg_card}; }}
+        """)
+        self.refresh_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c_bg_sidebar}; color: {c_text_main};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                margin-left: 10px;
+            }}
+            QPushButton:hover {{ background-color: {c_bg_card}; }}
+        """)
+        self.open_sheets_header_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c_bg_sidebar}; color: {c_text_main};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                margin-left: 10px;
+            }}
+            QPushButton:hover {{ background-color: {c_bg_card}; }}
+        """)
+        
+        # Overview Comboboxes
+        combo_style = f"""
+            QComboBox {{
+                background-color: {c_bg_card};
+                color: {c_text_main};
+                border: 1px solid {c_border_card};
+                border-radius: 4px;
+                padding: 4px 8px;
+                min-width: 120px;
+                font-size: 11px;
+            }}
+        """
+        self.overview_status_filter.setStyleSheet(combo_style)
+        self.overview_division_filter.setStyleSheet(combo_style)
+        self.overview_date_filter.setStyleSheet(combo_style)
+        self.status_lbl.setStyleSheet(f"color: {c_text_muted}; font-size: 11px;")
+        self.div_lbl.setStyleSheet(f"color: {c_text_muted}; font-size: 11px; margin-left: 10px;")
+        self.date_lbl.setStyleSheet(f"color: {c_text_muted}; font-size: 11px; margin-left: 10px;")
+
+        # Style Tables
+        table_style = f"""
+            QTableWidget {{
+                background-color: {c_bg_card};
+                border: 1px solid {c_border_card};
+                border-radius: 8px;
+                gridline-color: {c_border_card};
+                color: {c_text_main};
+            }}
+            QTableWidget::item {{
+                padding: 8px;
+                border-bottom: 1px solid {c_border_card};
+            }}
+            QTableWidget::item:selected {{
+                background-color: {c_table_item_selected_bg};
+                color: {c_table_item_selected_text};
+            }}
+            QHeaderView::section {{
+                background-color: {c_table_header_bg};
+                color: {c_table_header_text};
+                padding: 6px;
+                border: 1px solid {c_border_card};
+                font-weight: bold;
+            }}
+        """
+        self.project_table.setStyleSheet(table_style)
+        self.suppliers_table.setStyleSheet(table_style)
+
+        # StatCards styling
+        for card in [self.budget_card, self.awarded_card, self.paid_card]:
+            card.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c_bg_card};
+                    border: 1px solid {c_border_card};
+                    border-radius: 8px;
+                    padding: 15px;
+                }}
+            """)
+            card.title_label.setStyleSheet(f"color: {c_text_muted}; font-size: 11px; font-weight: bold; border: none; background: transparent;")
+            card.val_label.setStyleSheet(f"color: {card.color_hex}; font-size: 22px; font-weight: bold; border: none; background: transparent;")
+
+        # Page 2 (Project Cards Page) styling
+        self.cards_title.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {c_text_main};")
+        self.create_project_btn_cards.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c_accent}; color: #13131a;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: none;
+                margin-right: 15px;
+            }}
+            QPushButton:hover {{ background-color: {c_accent_hover}; }}
+        """)
+        self.export_btn_cards.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c_bg_sidebar}; color: {c_text_main};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                margin-right: 15px;
+            }}
+            QPushButton:hover {{ background-color: {c_bg_card}; }}
+        """)
+        self.open_sheets_header_btn_cards.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c_bg_sidebar}; color: {c_text_main};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                margin-right: 15px;
+            }}
+            QPushButton:hover {{ background-color: {c_bg_card}; }}
+        """)
+        
+        cards_combo_style = f"""
+            QComboBox {{
+                background-color: {c_bg_card}; color: {c_text_main}; border: 1px solid {c_border_card};
+                border-radius: 4px; padding: 8px; margin-right: 10px; min-width: 120px; font-size: 13px;
+            }}
+        """
+        self.cards_status_filter.setStyleSheet(cards_combo_style)
+        self.cards_division_filter.setStyleSheet(cards_combo_style)
+        self.cards_date_filter.setStyleSheet(cards_combo_style)
+        self.search_input.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {c_bg_card};
+                color: {c_text_main};
+                border: 1px solid {c_border_card};
+                border-radius: 5px;
+                padding: 8px;
+                font-size: 13px;
+                max-width: 300px;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {c_accent};
+            }}
+        """)
+
+        # Page 3 (Suppliers Directory Page) styling
+        self.sup_title.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {c_text_main};")
+        
+        # Settings Page styling
+        self.settings_title.setStyleSheet(f"font-size: 24px; font-weight: bold; margin-bottom: 10px; color: {c_text_main};")
+        
+        theme_box_qss = f"""
+            QGroupBox {{
+                border: 1px solid {c_border_card};
+                border-radius: 8px;
+                padding: 15px;
+                font-weight: bold;
+                color: {c_accent};
+                font-size: 14px;
+                background-color: transparent;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }}
+        """
+        self.theme_box.setStyleSheet(theme_box_qss)
+        self.google_box.setStyleSheet(theme_box_qss)
+        self.account_box.setStyleSheet(theme_box_qss)
+        self.google_desc.setStyleSheet(f"color: {c_text_muted}; font-size: 12px; margin-bottom: 10px; border: none; background: transparent;")
+        self.status_desc.setStyleSheet(f"color: {c_text_muted}; font-size: 12px; margin-bottom: 10px; border: none; background: transparent;")
+        
+        google_input_style = f"""
+            QLineEdit {{
+                background-color: {c_bg_app};
+                color: {c_text_main};
+                border: 1px solid {c_border_card};
+                border-radius: 4px;
+                padding: 6px;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {c_accent};
+            }}
+        """
+        self.creds_input.setStyleSheet(google_input_style)
+        self.sheet_id_input.setStyleSheet(google_input_style)
+        self.folder_id_input.setStyleSheet(google_input_style)
+        
+        btn_open_style = f"""
+            QPushButton {{
+                background-color: {c_bg_card};
+                color: {c_text_main};
+                border: 1px solid {c_border_card};
+                font-weight: bold;
+                border-radius: 4px;
+                padding: 6px 12px;
+            }}
+            QPushButton:hover {{
+                background-color: {c_bg_sidebar};
+            }}
+        """
+        self.btn_open_sheet.setStyleSheet(btn_open_style)
+        self.btn_open_folder.setStyleSheet(btn_open_style)
+
+        self.db_box.setStyleSheet(f"""
+            QGroupBox {{
+                border: 1px solid {c_border_card};
+                border-radius: 8px;
+                padding: 15px;
+                font-weight: bold;
+                color: #ff6666;
+                font-size: 14px;
+                background-color: transparent;
+            }}
+            QGroupBox::title {{
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }}
+        """)
+        self.theme_desc.setStyleSheet(f"color: {c_text_muted}; font-size: 12px; margin-bottom: 10px; border: none; background: transparent;")
+        self.db_desc.setStyleSheet(f"color: {c_text_muted}; font-size: 12px; margin-bottom: 10px; border: none; background: transparent;")
+        
+        # Style Settings Tabs
+        tab_style = f"""
+            QTabWidget::pane {{
+                border: 1px solid {c_border_card};
+                background-color: {c_bg_card};
+                border-radius: 8px;
+                padding: 15px;
+            }}
+            QTabBar::tab {{
+                background-color: {c_bg_sidebar};
+                color: {c_text_muted};
+                border: 1px solid {c_border_card};
+                border-bottom-color: transparent;
+                border-top-left-radius: 6px;
+                border-top-right-radius: 6px;
+                padding: 8px 20px;
+                margin-right: 2px;
+                font-weight: bold;
+                font-size: 12px;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {c_bg_card};
+                color: {c_accent};
+                border-bottom-color: {c_bg_card};
+            }}
+            QTabBar::tab:hover {{
+                background-color: {c_bg_card};
+                color: {c_text_main};
+            }}
+        """
+        self.settings_tabs.setStyleSheet(tab_style)
+        
+        # Theme toggle buttons state styling
+        if theme == "light":
+            self.btn_light_theme.setChecked(True)
+            self.btn_dark_theme.setChecked(False)
+            self.btn_light_theme.setStyleSheet(f"QPushButton {{ background-color: #0284c7; color: #ffffff; font-weight: bold; border-radius: 5px; border: none; }}")
+            self.btn_dark_theme.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: 1px solid {c_border_card}; border-radius: 5px; }} QPushButton:hover {{ background-color: #e2e8f0; }}")
+        else:
+            self.btn_dark_theme.setChecked(True)
+            self.btn_light_theme.setChecked(False)
+            self.btn_dark_theme.setStyleSheet(f"QPushButton {{ background-color: #00ffcc; color: #13131a; font-weight: bold; border-radius: 5px; border: none; }}")
+            self.btn_light_theme.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: 1px solid {c_border_card}; border-radius: 5px; }} QPushButton:hover {{ background-color: #2b2b36; }}")
                 
     def refresh_all_data(self):
         """Fetches the latest metrics and populates all widgets, lists, grids, and charts."""
@@ -698,15 +1486,22 @@ class Dashboard(QMainWindow):
             self.refresh_filtered_views()
             
             # 5. Populate Suppliers Directory
+            self.suppliers_table.blockSignals(True)
             suppliers = database_config.get_suppliers()
             self.suppliers_table.setRowCount(len(suppliers))
             for idx, s in enumerate(suppliers):
-                self.suppliers_table.setItem(idx, 0, QTableWidgetItem(s.get("supplier_name", "N/A")))
+                name_item = QTableWidgetItem(s.get("supplier_name", "N/A"))
+                name_item.setData(Qt.UserRole, s.get("id"))
+                self.suppliers_table.setItem(idx, 0, name_item)
                 self.suppliers_table.setItem(idx, 1, QTableWidgetItem(s.get("supplier_tin_no", "N/A")))
                 self.suppliers_table.setItem(idx, 2, QTableWidgetItem(s.get("supplier_address", "N/A")))
                 self.suppliers_table.setItem(idx, 3, QTableWidgetItem(s.get("supplier_contact_details", "N/A")))
                 self.suppliers_table.setItem(idx, 4, QTableWidgetItem(s.get("supplier_bank_branch", "N/A")))
                 self.suppliers_table.setItem(idx, 5, QTableWidgetItem(s.get("supplier_bank_account_number", "N/A")))
+            self.suppliers_table.blockSignals(False)
+            
+            # Silent automatic background sync to Google Sheets
+            self.trigger_background_push(silent=True)
                 
         except Exception as e:
             QMessageBox.critical(self, "Database Error", f"Failed to refresh dashboard data: {e}")
@@ -787,6 +1582,7 @@ class Dashboard(QMainWindow):
     def show_project_detail(self, project_id):
         dialog = Cardsystem.ProjectDetailDialog(project_id, self)
         dialog.exec()
+        self.refresh_all_data()
 
     def on_row_double_clicked(self, row, column):
         id_item = self.project_table.item(row, 0)
@@ -795,25 +1591,7 @@ class Dashboard(QMainWindow):
             if project_id is not None:
                 self.show_project_detail(project_id)
 
-    def export_data(self):
-        default_name = str(Path.home() / "Documents" / "procurement_master_export.csv")
-        filepath, _ = QFileDialog.getSaveFileName(
-            self, "Save Export File",
-            default_name,
-            "CSV Files (*.csv)"
-        )
-        if filepath:
-            success, result = excel_export.export_master_data(filepath)
-            if success:
-                QMessageBox.information(
-                    self, "Export Successful",
-                    f"Successfully exported {result} procurement timeline records to:\n{filepath}"
-                )
-            else:
-                QMessageBox.critical(
-                    self, "Export Failed",
-                    f"Error exporting database: {result}"
-                )
+
 
     def create_new_project(self):
         import form_dialogs
@@ -919,8 +1697,17 @@ class Dashboard(QMainWindow):
         # 1. Filter status, division and relative date presets
         filtered = []
         for p in all_projects:
+            # Status normalization for compatibility
+            p_status = p.get("status", "")
+            if p_status in ["Initiated", "Bidding"]:
+                p_status = "Planning & Bidding"
+                p["status"] = "Planning & Bidding"
+            elif p_status == "Delivering":
+                p_status = "Deliveries & Payments"
+                p["status"] = "Deliveries & Payments"
+                
             # Status filter
-            if status_text != "All Statuses" and p.get("status", "") != status_text:
+            if status_text != "All Statuses" and p_status != status_text:
                 continue
                 
             # Division filter
@@ -971,6 +1758,10 @@ class Dashboard(QMainWindow):
             
         # 4. Populate cards grid (applying text search filter as well)
         if hasattr(self, "grid_layout"):
+            # Clear previous stretches
+            for r in range(self.grid_layout.rowCount()):
+                self.grid_layout.setRowStretch(r, 0)
+                
             while self.grid_layout.count():
                 child = self.grid_layout.takeAt(0)
                 if child.widget():
@@ -987,6 +1778,9 @@ class Dashboard(QMainWindow):
                 card.clicked.connect(self.show_project_detail)
                 self.grid_layout.addWidget(card, row, 0)
                 row += 1
+                
+            # Add vertical stretch to bottom row to push all cards up
+            self.grid_layout.setRowStretch(row, 1)
 
     def create_new_project(self):
         import form_dialogs
@@ -1000,30 +1794,124 @@ class Dashboard(QMainWindow):
         if dialog.exec() == QDialog.Accepted:
             self.refresh_all_data()
 
-    def export_data(self):
-        import form_dialogs
-        filter_dialog = form_dialogs.ExportFilterDialog(self)
-        if filter_dialog.exec() == QDialog.Accepted:
-            filters = filter_dialog.get_filters()
+    def edit_selected_supplier(self):
+        selected_row = self.suppliers_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a supplier row from the table to edit.")
+            return
             
-            default_name = str(Path.home() / "Documents" / "procurement_master_export.xlsx")
-            filepath, _ = QFileDialog.getSaveFileName(
-                self, "Save Export File",
-                default_name,
-                "Excel Worksheets (*.xlsx)"
-            )
-            if filepath:
-                success, result = excel_export.export_master_data(filepath, filters)
-                if success:
-                    QMessageBox.information(
-                        self, "Export Successful",
-                        f"Successfully exported {result} filtered procurement records to styled Excel workbook:\n{filepath}"
-                    )
-                else:
-                    QMessageBox.critical(
-                        self, "Export Failed",
-                        f"Error exporting database: {result}"
-                    )
+        id_item = self.suppliers_table.item(selected_row, 0)
+        if not id_item:
+            return
+            
+        supplier_id = id_item.data(Qt.UserRole)
+        
+        # Fetch the current list of suppliers to get full dict details
+        suppliers = database_config.get_suppliers()
+        s_data = next((s for s in suppliers if s["id"] == supplier_id), None)
+        
+        if not s_data:
+            QMessageBox.critical(self, "Error", "Could not locate selected supplier data.")
+            return
+            
+        import form_dialogs
+        dialog = form_dialogs.AddSupplierDialog(self, s_data)
+        if dialog.exec() == QDialog.Accepted:
+            self.refresh_all_data()
+
+    def delete_selected_supplier(self):
+        selected_row = self.suppliers_table.currentRow()
+        if selected_row < 0:
+            QMessageBox.warning(self, "No Selection", "Please select a supplier row from the table to delete.")
+            return
+            
+        id_item = self.suppliers_table.item(selected_row, 0)
+        if not id_item:
+            return
+            
+        supplier_id = id_item.data(Qt.UserRole)
+        supplier_name = id_item.text()
+        
+        reply = QMessageBox.question(
+            self, "Confirm Delete",
+            f"Are you sure you want to permanently delete supplier '{supplier_name}'?\n\n"
+            "This will delete the supplier from directory. Any contracts pointing to this supplier will have a missing supplier name.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if reply == QMessageBox.Yes:
+            success, result = database_config.delete_supplier(supplier_id)
+            if success:
+                QMessageBox.information(self, "Deleted", f"Supplier '{supplier_name}' successfully deleted.")
+                self.refresh_all_data()
+            else:
+                QMessageBox.critical(self, "Error", f"Failed to delete supplier:\n{result}")
+
+    def on_supplier_cell_edited(self, item):
+        row = item.row()
+        col = item.column()
+        
+        # Get the first column item to retrieve the supplier ID
+        id_item = self.suppliers_table.item(row, 0)
+        if not id_item:
+            return
+            
+        supplier_id = id_item.data(Qt.UserRole)
+        if supplier_id is None:
+            return
+            
+        new_val = item.text().strip()
+        
+        # Map column index to db column name
+        db_cols = {
+            0: "supplier_name",
+            1: "tin",
+            2: "address",
+            3: "contact",
+            4: "branch",
+            5: "bank_name"
+        }
+        
+        db_col = db_cols.get(col)
+        if not db_col:
+            return
+            
+        # Validate that supplier name is not empty
+        if col == 0 and not new_val:
+            QMessageBox.warning(self, "Invalid Input", "Supplier name cannot be empty!")
+            self.refresh_all_data()
+            return
+            
+        import sqlite3
+        from pathlib import Path
+        db_file = Path(__file__).parent / "procurement.db"
+        conn = sqlite3.connect(db_file, timeout=20.0)
+        cur = conn.cursor()
+        try:
+            if db_col == "supplier_name":
+                # For bank_account field, we keep it in sync with supplier_name
+                cur.execute("""
+                    UPDATE suppliers 
+                    SET supplier_name = ?, bank_account = ?
+                    WHERE supplier_id = ?
+                """, (new_val, new_val, supplier_id))
+            else:
+                cur.execute(f"""
+                    UPDATE suppliers 
+                    SET {db_col} = ?
+                    WHERE supplier_id = ?
+                """, (new_val, supplier_id))
+            conn.commit()
+        except Exception as e:
+            QMessageBox.critical(self, "Database Error", f"Failed to save changes inline:\n{e}")
+        finally:
+            conn.close()
+            
+        # Refresh the dashboard stats/panels without firing the itemChanged recursion
+        self.suppliers_table.blockSignals(True)
+        self.refresh_all_data()
+        self.suppliers_table.blockSignals(False)
+
+
 
     def reseed_database(self):
         reply = QMessageBox.question(
@@ -1033,7 +1921,7 @@ class Dashboard(QMainWindow):
         )
         if reply == QMessageBox.Yes:
             try:
-                database_config.create_project()
+                database_config.seed()
                 self.refresh_all_data()
                 QMessageBox.information(self, "Success", "Database has been successfully reset to sample data.")
             except Exception as e:
@@ -1064,6 +1952,304 @@ class Dashboard(QMainWindow):
                 
         QApplication.clipboard().setText(copied_text.strip())
 
+    def browse_google_credentials(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select credentials.json", "", "JSON Files (*.json)")
+        if file_path:
+            self.creds_input.setText(file_path)
+            import database_config
+            database_config.set_system_setting("google_credentials_path", file_path)
+            QMessageBox.information(self, "Credentials Selected", "Google OAuth Client Secrets JSON file configured successfully!")
+
+    def create_new_google_sheet(self):
+        import database_config
+        creds = database_config.get_system_setting("google_credentials_path", "")
+        if not creds or not os.path.exists(creds):
+            QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path first before creating a spreadsheet.")
+            return
+        
+        self.setCursor(Qt.WaitCursor)
+        try:
+            import google_sync
+            sid = google_sync.ensure_spreadsheet()
+            self.sheet_id_input.setText(sid)
+            QMessageBox.information(self, "Spreadsheet Created", f"Successfully created a new Google Spreadsheet online!\n\nSpreadsheet ID: {sid}\n\nYou can share this ID with other team members.")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to create Google Spreadsheet:\n{e}")
+        finally:
+            self.unsetCursor()
+
+    def create_new_google_folder(self):
+        import database_config
+        creds = database_config.get_system_setting("google_credentials_path", "")
+        if not creds or not os.path.exists(creds):
+            QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path first before creating a folder.")
+            return
+            
+        self.setCursor(Qt.WaitCursor)
+        try:
+            import google_sync
+            fid = google_sync.ensure_drive_folder()
+            self.folder_id_input.setText(fid)
+            QMessageBox.information(self, "Folder Created", f"Successfully created a new Google Drive Folder online!\n\nFolder ID: {fid}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to create Google Drive Folder:\n{e}")
+        finally:
+            self.unsetCursor()
+
+    def on_google_config_changed(self):
+        import database_config
+        database_config.set_system_setting("google_spreadsheet_id", self.sheet_id_input.text().strip())
+        database_config.set_system_setting("google_drive_folder_id", self.folder_id_input.text().strip())
+
+    def set_sync_buttons_enabled(self, enabled):
+        buttons = [
+            getattr(self, "export_btn", None),
+            getattr(self, "export_btn_cards", None),
+            getattr(self, "btn_push_sheets", None),
+            getattr(self, "btn_pull_sheets", None)
+        ]
+        for btn in buttons:
+            if btn is not None:
+                btn.setEnabled(enabled)
+
+    def sync_google_sheets_action(self):
+        reply = QMessageBox.question(
+            self, "Sync with Google Sheets",
+            "Would you like to synchronize your local database and push all records to Google Sheets?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+        )
+        if reply == QMessageBox.Yes:
+            self.push_data_to_sheets()
+
+    def push_data_to_sheets(self):
+        import database_config
+        creds = database_config.get_system_setting("google_credentials_path", "")
+        if not creds or not os.path.exists(creds):
+            QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path in the Settings tab first.")
+            return
+            
+        self.statusBar().showMessage("Syncing database to Google Sheets in background...", 5000)
+        self.setCursor(Qt.WaitCursor)
+        self.set_sync_buttons_enabled(False)
+        
+        from google_sync import GoogleSyncWorker
+        self.push_worker = GoogleSyncWorker(action_type="push")
+        
+        def on_push_finished(success, result):
+            self.unsetCursor()
+            self.set_sync_buttons_enabled(True)
+            if success:
+                self.statusBar().showMessage("Google Sheets Sync Completed!", 5000)
+                QMessageBox.information(self, "Sync Complete", f"All SQLite tables successfully pushed to Google Sheets!\n\nSpreadsheet ID: {result}")
+            else:
+                self.statusBar().showMessage(f"Sync Failed: {result}", 5000)
+                QMessageBox.critical(self, "Sync Failed", f"Synchronization failed:\n{result}")
+                
+        self.push_worker.finished.connect(on_push_finished)
+        self.push_worker.start()
+
+    def pull_data_from_sheets(self):
+        import database_config
+        creds = database_config.get_system_setting("google_credentials_path", "")
+        if not creds or not os.path.exists(creds):
+            QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path in the Settings tab first.")
+            return
+            
+        reply = QMessageBox.question(
+            self, "Confirm Pull & Merge",
+            "This will overwrite local records with the latest row values from Google Sheets. Proceed?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+        )
+        if reply != QMessageBox.Yes:
+            return
+            
+        self.statusBar().showMessage("Pulling online data from Google Sheets in background...", 5000)
+        self.setCursor(Qt.WaitCursor)
+        self.set_sync_buttons_enabled(False)
+        
+        from google_sync import GoogleSyncWorker
+        self.pull_worker = GoogleSyncWorker(action_type="pull")
+        
+        def on_pull_finished(success, result):
+            self.unsetCursor()
+            self.set_sync_buttons_enabled(True)
+            if success:
+                self.statusBar().showMessage("Google Sheets Pull Completed!", 5000)
+                QMessageBox.information(self, "Sync Complete", "Successfully pulled online changes from Google Sheets and merged them into the local database!")
+                self.refresh_all_data()
+            else:
+                self.statusBar().showMessage(f"Pull Failed: {result}", 5000)
+                QMessageBox.critical(self, "Sync Failed", f"Pull failed:\n{result}")
+                
+        self.pull_worker.finished.connect(on_pull_finished)
+        self.pull_worker.start()
+
+    def trigger_background_push(self, silent=True):
+        import database_config
+        import os
+        creds = database_config.get_system_setting("google_credentials_path", "")
+        if not creds or not os.path.exists(creds):
+            return
+            
+        token_path = os.path.join(os.path.dirname(creds), 'token.json')
+        if not os.path.exists(token_path):
+            return
+            
+        try:
+            if hasattr(self, "_bg_push_worker") and self._bg_push_worker.isRunning():
+                return
+                
+            from google_sync import GoogleSyncWorker
+            self._bg_push_worker = GoogleSyncWorker(action_type="push")
+            
+            if silent:
+                self.statusBar().showMessage("Syncing database to Google Sheets in background...", 3000)
+                self._bg_push_worker.finished.connect(lambda success, msg: self.statusBar().showMessage("Google Sheets Sync Completed!" if success else f"Auto-Sync Failed: {msg}", 4000))
+            else:
+                self.setCursor(Qt.WaitCursor)
+                def on_finished(success, result):
+                    self.unsetCursor()
+                    if success:
+                        self.statusBar().showMessage("Google Sheets Sync Completed!", 4000)
+                        QMessageBox.information(self, "Sync Complete", f"All SQLite tables successfully pushed to Google Sheets!\n\nSpreadsheet ID: {result}")
+                    else:
+                        self.statusBar().showMessage(f"Sync Failed: {result}", 4000)
+                        QMessageBox.critical(self, "Sync Failed", f"Synchronization failed:\n{result}")
+                self._bg_push_worker.finished.connect(on_finished)
+                
+            self._bg_push_worker.start()
+        except Exception as e:
+            print(f"Failed to trigger auto background push: {e}")
+
+    def open_google_sheet_in_browser(self):
+        import database_config
+        sid = database_config.get_system_setting("google_spreadsheet_id", "").strip()
+        if not sid:
+            sid = self.sheet_id_input.text().strip()
+        if sid:
+            url = f"https://docs.google.com/spreadsheets/d/{sid}"
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+            QDesktopServices.openUrl(QUrl(url))
+        else:
+            QMessageBox.warning(self, "No Spreadsheet ID", "Please specify or create a Google Spreadsheet ID first.")
+
+    def open_google_folder_in_browser(self):
+        import database_config
+        fid = database_config.get_system_setting("google_drive_folder_id", "").strip()
+        if not fid:
+            fid = self.folder_id_input.text().strip()
+        if fid:
+            url = f"https://drive.google.com/drive/folders/{fid}"
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+            QDesktopServices.openUrl(QUrl(url))
+        else:
+            QMessageBox.warning(self, "No Folder ID", "Please specify or create a Google Drive Folder ID first.")
+
+    def perform_google_auto_setup(self):
+        import database_config
+        sheet_id = database_config.get_system_setting("google_spreadsheet_id", "")
+        folder_id = database_config.get_system_setting("google_drive_folder_id", "")
+        creds = database_config.get_system_setting("google_credentials_path", "")
+        
+        import os
+        if creds and os.path.exists(creds):
+            if not sheet_id or not folder_id:
+                try:
+                    import google_sync
+                    created_new = False
+                    if not sheet_id:
+                        sheet_id = google_sync.ensure_spreadsheet()
+                        self.sheet_id_input.setText(sheet_id)
+                        created_new = True
+                    if not folder_id:
+                        folder_id = google_sync.ensure_drive_folder()
+                        self.folder_id_input.setText(folder_id)
+                    
+                    if created_new:
+                        google_sync.push_sqlite_to_sheets()
+                        
+                    print("Google auto-setup completed successfully.")
+                    self.refresh_google_account_status()
+                except Exception as e:
+                    print(f"Google auto-setup skipped or failed: {e}")
+                    self.refresh_google_account_status()
+
+    def disconnect_google_account(self):
+        reply = QMessageBox.question(
+            self, "Confirm Disconnect",
+            "Are you sure you want to disconnect and log out of your Google Account?\n\nThis will clear all local session tokens and reset your Spreadsheet/Folder links.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if reply != QMessageBox.Yes:
+            return
+            
+        try:
+            import database_config
+            import os
+            
+            # 1. Delete token.json
+            creds_path = database_config.get_system_setting("google_credentials_path", "")
+            if creds_path:
+                token_path = os.path.join(os.path.dirname(creds_path), 'token.json')
+                if os.path.exists(token_path):
+                    os.remove(token_path)
+            
+            # 2. Reset database configurations
+            database_config.set_system_setting("google_spreadsheet_id", "")
+            database_config.set_system_setting("google_drive_folder_id", "")
+            
+            # 3. Update GUI inputs
+            self.sheet_id_input.setText("")
+            self.folder_id_input.setText("")
+            
+            QMessageBox.information(
+                self, "Disconnected",
+                "Google Account successfully disconnected!\n\nThe local session has been cleared."
+            )
+            self.refresh_google_account_status()
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Error",
+                f"Failed to disconnect Google Account:\n{e}"
+            )
+
+    def connect_google_account(self):
+        self.setCursor(Qt.WaitCursor)
+        try:
+            import google_sync
+            google_sync.get_google_services()
+            QMessageBox.information(self, "Connected", "Google Account successfully connected!")
+            self.refresh_google_account_status()
+        except Exception as e:
+            QMessageBox.critical(self, "Authentication Failed", f"Failed to authenticate:\n{e}")
+        finally:
+            self.unsetCursor()
+
+    def refresh_google_account_status(self):
+        try:
+            import google_sync
+            email = google_sync.get_connected_email()
+            if email:
+                self.lbl_auth_status.setText("🟢 Connected")
+                self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #00ffcc;")
+                self.lbl_auth_email.setText(email)
+                self.btn_connect_google.setEnabled(False)
+                self.btn_disconnect_google.setEnabled(True)
+            else:
+                self.lbl_auth_status.setText("🔴 Disconnected")
+                self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #ff6666;")
+                self.lbl_auth_email.setText("Not Logged In")
+                self.btn_connect_google.setEnabled(True)
+                self.btn_disconnect_google.setEnabled(False)
+        except Exception:
+            self.lbl_auth_status.setText("🔴 Disconnected")
+            self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #ff6666;")
+            self.lbl_auth_email.setText("Not Logged In")
+            self.btn_connect_google.setEnabled(True)
+            self.btn_disconnect_google.setEnabled(False)
+
 def clean_temp_files():
     import tempfile
     import glob
@@ -1082,6 +2268,25 @@ if __name__ == "__main__":
     clean_temp_files()
     app = QApplication(sys.argv)
     app.aboutToQuit.connect(clean_temp_files)
+    
+    # 1. Instantiate and display custom splash screen
+    splash = PremiumSplashScreen()
+    splash.show()
+    
+    # 2. Step 1: Scanning local folder
+    splash.set_progress(20, "Scanning local cache and temporary files...")
+    
+    # 3. Step 2: Local Database initialization
+    splash.set_progress(50, "Establishing database connection and verifying schemas...")
+    import database_config
+    
+    # 4. Step 3: Starting Dashboard GUI Components
+    splash.set_progress(80, "Starting dashboard visual layout and themes...")
     window = Dashboard()
-    window.show()
+    
+    # 5. Done: transition to main application window
+    splash.set_progress(100, "Done!")
+    splash.finish(window)
+    
+    window.showMaximized()
     sys.exit(app.exec())

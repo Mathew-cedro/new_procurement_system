@@ -1,3 +1,14 @@
 __pycache__/
 *.pyc
 *.db
+
+# Google OAuth Credentials & Tokens
+*credentials.json
+token.json
+
+# Local Uploaded Documents Cache
+uploaded_documents/
+
+# Temporary files
+tempCodeRunnerFile.py
+*.tmp
