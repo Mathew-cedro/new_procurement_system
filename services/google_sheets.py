@@ -699,3 +699,43 @@ class GoogleSyncWorker(QThread):
             if any(net_err in err_msg.lower() for net_err in ["nameresolutionerror", "getaddrinfo failed", "failed to resolve", "max retries exceeded", "connectionrefused", "timed out", "timeout"]):
                 err_msg = "NETWORK_ERROR: Unable to connect to Google servers. Please check your internet connection and try again."
             self.finished.emit(False, err_msg)
+
+
+import socket
+import time
+
+class NetworkMonitorThread(QThread):
+    status_changed = Signal(bool) # Emits True if connected, False if offline
+    
+    def __init__(self, interval_seconds=10):
+        super().__init__()
+        self.interval_seconds = interval_seconds
+        self._running = True
+        self._last_state = None
+        
+    def stop(self):
+        self._running = False
+        
+    def check_connection(self):
+        try:
+            s = socket.create_connection(("8.8.8.8", 53), timeout=2.0)
+            s.close()
+            return True
+        except Exception:
+            try:
+                s = socket.create_connection(("oauth2.googleapis.com", 443), timeout=2.0)
+                s.close()
+                return True
+            except Exception:
+                return False
+                
+    def run(self):
+        while self._running:
+            is_online = self.check_connection()
+            if is_online != self._last_state:
+                self._last_state = is_online
+                self.status_changed.emit(is_online)
+            for _ in range(self.interval_seconds):
+                if not self._running:
+                    break
+                time.sleep(1)

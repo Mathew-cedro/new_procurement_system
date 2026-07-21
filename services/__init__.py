@@ -1,2 +1,2 @@
-from .google_sheets import GoogleSyncWorker, push_sqlite_to_sheets, pull_sheets_to_sqlite
+from .google_sheets import GoogleSyncWorker, NetworkMonitorThread, push_sqlite_to_sheets, pull_sheets_to_sqlite
 from .excel_export import export_master_data, export_project_timeline

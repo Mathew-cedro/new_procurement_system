@@ -191,6 +191,27 @@ class Dashboard(QMainWindow):
             
         sidebar_layout.addStretch()
         
+        # Network Status Indicator Badge
+        self.net_status_container = QHBoxLayout()
+        self.net_status_container.setContentsMargins(5, 5, 5, 5)
+        self.net_status_label = QLabel("🟢 Online")
+        self.net_status_label.setAlignment(Qt.AlignCenter)
+        self.net_status_label.setToolTip("Connected to Internet (Sync available)")
+        self.net_status_label.setStyleSheet("""
+            QLabel {
+                color: #22c55e;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 5px 10px;
+                background-color: rgba(34, 197, 94, 0.15);
+                border: 1px solid rgba(34, 197, 94, 0.3);
+                border-radius: 6px;
+            }
+        """)
+        self.net_status_container.addWidget(self.net_status_label)
+        sidebar_layout.addLayout(self.net_status_container)
+        sidebar_layout.addSpacing(5)
+        
         # 🚪 Exit Button at the bottom of the sidebar
         self.exit_btn = QPushButton("🚪 Exit")
         self.exit_btn.clicked.connect(self.close)
@@ -969,6 +990,52 @@ class Dashboard(QMainWindow):
         self.switch_page(0)
         self.refresh_all_data()
 
+        # Start background network monitor thread
+        from services import NetworkMonitorThread
+        self.network_monitor = NetworkMonitorThread(interval_seconds=10)
+        self.network_monitor.status_changed.connect(self.update_network_status)
+        self.network_monitor.start()
+
+    def update_network_status(self, is_online):
+        self.is_online = is_online
+        is_collapsed = getattr(self, "sidebar_collapsed", False)
+        
+        if is_online:
+            txt = "🟢 Online" if not is_collapsed else "🟢"
+            self.net_status_label.setText(txt)
+            self.net_status_label.setToolTip("Connected to Internet (Sync available)")
+            self.net_status_label.setStyleSheet("""
+                QLabel {
+                    color: #22c55e;
+                    font-size: 12px;
+                    font-weight: bold;
+                    padding: 5px 10px;
+                    background-color: rgba(34, 197, 94, 0.15);
+                    border: 1px solid rgba(34, 197, 94, 0.3);
+                    border-radius: 6px;
+                }
+            """)
+        else:
+            txt = "🔴 Offline" if not is_collapsed else "🔴"
+            self.net_status_label.setText(txt)
+            self.net_status_label.setToolTip("Offline Mode (No Internet Connection)")
+            self.net_status_label.setStyleSheet("""
+                QLabel {
+                    color: #ef4444;
+                    font-size: 12px;
+                    font-weight: bold;
+                    padding: 5px 10px;
+                    background-color: rgba(239, 68, 68, 0.15);
+                    border: 1px solid rgba(239, 68, 68, 0.3);
+                    border-radius: 6px;
+                }
+            """)
+
+    def closeEvent(self, event):
+        if hasattr(self, "network_monitor"):
+            self.network_monitor.stop()
+        super().closeEvent(event)
+
     def toggle_sidebar(self):
         is_collapsed = getattr(self, "sidebar_collapsed", False)
         if not is_collapsed:
@@ -1432,6 +1499,9 @@ class Dashboard(QMainWindow):
                 self.btn_prev_page.setStyleSheet(btn_pag_style)
                 self.btn_next_page.setStyleSheet(btn_pag_style)
                 self.lbl_page_num.setStyleSheet("color: #a0a0b0; font-size: 13px; font-weight: bold; margin-left: 10px; margin-right: 10px;")
+                
+        if hasattr(self, "net_status_label"):
+            self.update_network_status(getattr(self, "is_online", True))
                 
     def refresh_all_data(self):
         """Fetches the latest metrics and populates all widgets, lists, grids, and charts."""
