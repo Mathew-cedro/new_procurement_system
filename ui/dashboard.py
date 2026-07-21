@@ -110,6 +110,8 @@ class Dashboard(QMainWindow):
         self.setWindowTitle("Procurement & Payment Tracking Dashboard")
         self.resize(1100, 700)
         self.setStyleSheet("background-color: #1e1e24; color: #ffffff;")
+        self.current_cards_page = 1
+        self.cards_per_page = 20
         
         # Central Layout
         main_widget = QWidget()
@@ -588,6 +590,45 @@ class Dashboard(QMainWindow):
         
         cards_scroll.setWidget(self.cards_container)
         cards_page_layout.addWidget(cards_scroll)
+        
+        # Pagination Layout under Scroll View
+        pagination_layout = QHBoxLayout()
+        pagination_layout.setContentsMargins(0, 10, 0, 10)
+        pagination_layout.setSpacing(10)
+        pagination_layout.addStretch()
+        
+        self.btn_prev_page = QPushButton("◀ Prev")
+        self.btn_prev_page.setFixedSize(80, 30)
+        self.btn_prev_page.setStyleSheet("""
+            QPushButton {
+                background-color: #2b2b36; color: #ffffff; border: 1px solid #3a3a4a;
+                border-radius: 4px; font-weight: bold; font-size: 12px;
+            }
+            QPushButton:hover { background-color: #323242; border: 1px solid #00ffcc; }
+            QPushButton:disabled { background-color: #1e1e24; color: #5a5a6a; border: 1px solid #2b2b36; }
+        """)
+        self.btn_prev_page.clicked.connect(self.prev_cards_page)
+        pagination_layout.addWidget(self.btn_prev_page)
+        
+        self.lbl_page_num = QLabel("Page 1 of 1")
+        self.lbl_page_num.setStyleSheet("color: #a0a0b0; font-size: 13px; font-weight: bold; margin-left: 10px; margin-right: 10px;")
+        pagination_layout.addWidget(self.lbl_page_num)
+        
+        self.btn_next_page = QPushButton("Next ▶")
+        self.btn_next_page.setFixedSize(80, 30)
+        self.btn_next_page.setStyleSheet("""
+            QPushButton {
+                background-color: #2b2b36; color: #ffffff; border: 1px solid #3a3a4a;
+                border-radius: 4px; font-weight: bold; font-size: 12px;
+            }
+            QPushButton:hover { background-color: #323242; border: 1px solid #00ffcc; }
+            QPushButton:disabled { background-color: #1e1e24; color: #5a5a6a; border: 1px solid #2b2b36; }
+        """)
+        self.btn_next_page.clicked.connect(self.next_cards_page)
+        pagination_layout.addWidget(self.btn_next_page)
+        pagination_layout.addStretch()
+        
+        cards_page_layout.addLayout(pagination_layout)
         
         self.stacked_widget.addWidget(cards_page)
         
@@ -1465,6 +1506,16 @@ class Dashboard(QMainWindow):
             print(f"Error loading dashboard analytics components: {e}")
 
     def refresh_cards_grid(self, search_text=""):
+        self.current_cards_page = 1
+        self.refresh_filtered_views()
+
+    def prev_cards_page(self):
+        if self.current_cards_page > 1:
+            self.current_cards_page -= 1
+            self.refresh_filtered_views()
+
+    def next_cards_page(self):
+        self.current_cards_page += 1
         self.refresh_filtered_views()
 
     def show_project_detail(self, project_id):
@@ -1565,6 +1616,7 @@ class Dashboard(QMainWindow):
             self.overview_date_filter.setCurrentIndex(self.cards_date_filter.currentIndex())
             self.overview_date_filter.blockSignals(False)
             
+        self.current_cards_page = 1
         self.refresh_filtered_views()
 
     def refresh_filtered_views(self):
@@ -1644,7 +1696,7 @@ class Dashboard(QMainWindow):
             self.project_table.setItem(idx, 4, QTableWidgetItem(f"₱{abc:,.2f}"))
             self.project_table.setItem(idx, 5, QTableWidgetItem(p.get("status", "N/A")))
             
-        # 4. Populate cards grid (applying text search filter as well)
+        # 4. Populate cards grid (applying text search filter as well with pagination)
         if hasattr(self, "grid_layout"):
             # Clear previous stretches
             for r in range(self.grid_layout.rowCount()):
@@ -1655,13 +1707,40 @@ class Dashboard(QMainWindow):
                 if child.widget():
                     child.widget().deleteLater()
                     
-            row = 0
+            # Filter projects that match the search text
+            cards_projects = []
             for proj in filtered:
                 name_match = search_text.lower() in proj.get("project_name", "").lower()
                 id_match = search_text.lower() in proj.get("proj_id_no", "").lower()
-                if search_text and not (name_match or id_match):
-                    continue
+                if not search_text or (name_match or id_match):
+                    cards_projects.append(proj)
                     
+            # Calculate pagination
+            total_cards = len(cards_projects)
+            total_pages = max(1, (total_cards + self.cards_per_page - 1) // self.cards_per_page)
+            
+            # Clamp current page to safe boundaries
+            if self.current_cards_page > total_pages:
+                self.current_cards_page = total_pages
+            if self.current_cards_page < 1:
+                self.current_cards_page = 1
+                
+            # Slice projects for the current page
+            start_idx = (self.current_cards_page - 1) * self.cards_per_page
+            end_idx = start_idx + self.cards_per_page
+            page_projects = cards_projects[start_idx:end_idx]
+            
+            # Update pagination label and button states
+            if hasattr(self, "lbl_page_num"):
+                self.lbl_page_num.setText(f"Page {self.current_cards_page} of {total_pages} (Total: {total_cards})")
+            if hasattr(self, "btn_prev_page"):
+                self.btn_prev_page.setEnabled(self.current_cards_page > 1)
+            if hasattr(self, "btn_next_page"):
+                self.btn_next_page.setEnabled(self.current_cards_page < total_pages)
+                
+            # Instantiate card widgets for the page
+            row = 0
+            for proj in page_projects:
                 card = Cardsystem.ProjectCardWidget(proj)
                 card.clicked.connect(self.show_project_detail)
                 self.grid_layout.addWidget(card, row, 0)

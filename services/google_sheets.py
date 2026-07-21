@@ -12,6 +12,14 @@ SCOPES = [
     'https://www.googleapis.com/auth/drive.file'
 ]
 
+def col_index_to_letter(col_idx):
+    """Converts a 0-based column index to an A1-style column letter (e.g. 0 -> A, 25 -> Z, 26 -> AA)."""
+    letter = ""
+    while col_idx >= 0:
+        letter = chr(col_idx % 26 + ord('A')) + letter
+        col_idx = col_idx // 26 - 1
+    return letter
+
 def get_google_services():
     """Authenticates the user and returns Sheets and Drive API services."""
     import database as database_config
@@ -412,10 +420,14 @@ def push_sqlite_to_sheets():
                                     }
                                 })
                 
-                sheets_service.spreadsheets().batchUpdate(
-                    spreadsheetId=spreadsheet_id,
-                    body={'requests': format_requests}
-                ).execute()
+                # Chunk format_requests into batches of 500 to avoid payload size limit issues
+                chunk_size = 500
+                for i in range(0, len(format_requests), chunk_size):
+                    chunk = format_requests[i:i + chunk_size]
+                    sheets_service.spreadsheets().batchUpdate(
+                        spreadsheetId=spreadsheet_id,
+                        body={'requests': chunk}
+                    ).execute()
     except Exception as e:
         print(f"Failed to style sheets: {e}")
 
@@ -464,111 +476,121 @@ def pull_sheets_to_sqlite():
     try:
         cur.execute("PRAGMA foreign_keys = OFF")
         
-        # Get the full spreadsheet structure with cell values and chip runs
-        spreadsheet_data = sheets_service.spreadsheets().get(
-            spreadsheetId=spreadsheet_id,
-            includeGridData=True,
-            fields="sheets(properties(title),data(rowData(values(userEnteredValue,chipRuns))))"
-        ).execute()
-        
-        for sheet in spreadsheet_data.get('sheets', []):
-            table = sheet['properties']['title']
-            if table not in tables:
-                continue
-                
-            grid_data_list = sheet.get('data', [])
-            if not grid_data_list:
-                continue
-                
-            row_data_list = grid_data_list[0].get('rowData', [])
-            if len(row_data_list) < 2:
-                continue
-                
-            # Parse headers from the first row
-            header_row = row_data_list[0].get('values', [])
-            headers = []
-            for cell in header_row:
-                val = ""
-                ue_val = cell.get('userEnteredValue', {})
-                if 'stringValue' in ue_val:
-                    val = ue_val['stringValue']
-                headers.append(val)
-                
-            pk = primary_keys.get(table)
-            
-            for row_record in row_data_list[1:]:
-                cell_list = row_record.get('values', [])
-                if len(cell_list) < len(headers):
-                    cell_list.extend([{}].copy() for _ in range(len(headers) - len(cell_list)))
-                    
-                row_dict = {}
-                for c_idx, cell in enumerate(cell_list):
-                    col_name = headers[c_idx]
-                    if not col_name:
-                        continue
-                        
-                    val = None
-                    ue_val = cell.get('userEnteredValue', {})
-                    if 'stringValue' in ue_val:
-                        val = ue_val['stringValue']
-                    elif 'numberValue' in ue_val:
-                        val = ue_val['numberValue']
-                    elif 'boolValue' in ue_val:
-                        val = ue_val['boolValue']
-                        
-                    # Extract smart chip URL
-                    if col_name.endswith("_pdf") and 'chipRuns' in cell:
-                        for run in cell['chipRuns']:
-                            chip = run.get('chip', {})
-                            rich_link = chip.get('richLinkProperties', {})
-                            if 'uri' in rich_link:
-                                val = rich_link['uri']
-                                break
-                                
-                    row_dict[col_name] = val if val is not None else ""
-                    
-                if pk not in row_dict or not row_dict[pk] or str(row_dict[pk]).strip() == "":
+        for table in tables:
+            try:
+                # 1. Fetch raw values first (very fast, handles thousands of rows in milliseconds)
+                res = sheets_service.spreadsheets().values().get(
+                    spreadsheetId=spreadsheet_id, range=f"'{table}'!A1:Z10000"
+                ).execute()
+                values = res.get('values', [])
+                if not values or len(values) < 2:
                     continue
                     
-                cur.execute(f"PRAGMA table_info({table})")
-                columns_info = cur.fetchall()
-                db_columns = [col[1] for col in columns_info]
+                headers = values[0]
+                pk = primary_keys.get(table)
                 
-                final_row_dict = {}
-                for col in db_columns:
-                    if col in row_dict:
-                        val = row_dict[col]
-                        if val == "" or val is None:
-                            final_row_dict[col] = None
-                        else:
-                            col_type = next((c[2] for c in columns_info if c[1] == col), "TEXT")
-                            if "INT" in col_type.upper():
-                                try:
-                                    final_row_dict[col] = int(val)
-                                except ValueError:
-                                    final_row_dict[col] = None
-                            elif "REAL" in col_type.upper() or "NUM" in col_type.upper():
-                                try:
-                                    final_row_dict[col] = float(val)
-                                except ValueError:
-                                    final_row_dict[col] = None
+                # Exclude header row and build a list of row dicts
+                row_dicts = []
+                for row in values[1:]:
+                    if len(row) < len(headers):
+                        row.extend([""] * (len(headers) - len(row)))
+                    row_dicts.append(dict(zip(headers, row)))
+                    
+                # 2. Identify PDF columns to fetch their smart chip URLs
+                pdf_columns = [col for col in headers if col.endswith("_pdf")]
+                if pdf_columns:
+                    pdf_ranges = []
+                    col_to_letter = {}
+                    for col in pdf_columns:
+                        c_idx = headers.index(col)
+                        # Convert column index to A1 letter
+                        col_letter = col_index_to_letter(c_idx)
+                        col_to_letter[col] = col_letter
+                        pdf_ranges.append(f"'{table}'!{col_letter}:{col_letter}")
+                        
+                    # Fetch formats/chipRuns only for those columns
+                    try:
+                        res_chips = sheets_service.spreadsheets().get(
+                            spreadsheetId=spreadsheet_id,
+                            ranges=pdf_ranges,
+                            includeGridData=True,
+                            fields="sheets(data(rowData(values(chipRuns))))"
+                        ).execute()
+                        
+                        # Parse the chip runs
+                        sheets_list = res_chips.get('sheets', [])
+                        if sheets_list:
+                            grid_data_list = sheets_list[0].get('data', [])
+                            # Map each range back to the PDF column name
+                            for range_idx, data_entry in enumerate(grid_data_list):
+                                if range_idx < len(pdf_columns):
+                                    col_name = pdf_columns[range_idx]
+                                    row_data_list = data_entry.get('rowData', [])
+                                    # Update URLs in row_dicts (offset by 1 due to header row)
+                                    for r_idx in range(1, len(row_data_list)):
+                                        row_cell_list = row_data_list[r_idx].get('values', [])
+                                        if row_cell_list:
+                                            cell = row_cell_list[0] # range is single column, so index 0
+                                            if 'chipRuns' in cell:
+                                                for run in cell['chipRuns']:
+                                                    chip = run.get('chip', {})
+                                                    rich_link = chip.get('richLinkProperties', {})
+                                                    if 'uri' in rich_link:
+                                                        uri_val = rich_link['uri']
+                                                        # Update the value in row_dicts (r_idx - 1 mapping)
+                                                        if r_idx - 1 < len(row_dicts):
+                                                            row_dicts[r_idx - 1][col_name] = uri_val
+                                                        break
+                    except Exception as chip_err:
+                        print(f"Skipped formatting fetch for '{table}': {chip_err}")
+                
+                # 3. Save records to local SQLite database
+                for row_dict in row_dicts:
+                    if pk not in row_dict or not row_dict[pk] or str(row_dict[pk]).strip() == "":
+                        continue
+                        
+                    cur.execute(f"PRAGMA table_info({table})")
+                    columns_info = cur.fetchall()
+                    db_columns = [col[1] for col in columns_info]
+                    
+                    final_row_dict = {}
+                    for col in db_columns:
+                        if col in row_dict:
+                            val = row_dict[col]
+                            if val == "" or val is None:
+                                final_row_dict[col] = None
                             else:
-                                final_row_dict[col] = val
-                                
-                if final_row_dict:
-                    cols = ", ".join(final_row_dict.keys())
-                    placeholders = ", ".join(["?"] * len(final_row_dict))
-                    
-                    update_cols = [c for c in final_row_dict.keys() if c != pk]
-                    update_str = ", ".join(f"{c} = excluded.{c}" for c in update_cols)
-                    
-                    q = f"""
-                        INSERT INTO {table} ({cols}) 
-                        VALUES ({placeholders})
-                        ON CONFLICT({pk}) DO UPDATE SET {update_str}
-                    """
-                    cur.execute(q, tuple(final_row_dict.values()))
-                    
+                                col_type = next((c[2] for c in columns_info if c[1] == col), "TEXT")
+                                if "INT" in col_type.upper():
+                                    try:
+                                        final_row_dict[col] = int(val)
+                                    except ValueError:
+                                        final_row_dict[col] = None
+                                elif "REAL" in col_type.upper() or "NUM" in col_type.upper():
+                                    try:
+                                        final_row_dict[col] = float(val)
+                                    except ValueError:
+                                        final_row_dict[col] = None
+                                else:
+                                    final_row_dict[col] = val
+                                    
+                    if final_row_dict:
+                        cols = ", ".join(final_row_dict.keys())
+                        placeholders = ", ".join(["?"] * len(final_row_dict))
+                        
+                        update_cols = [c for c in final_row_dict.keys() if c != pk]
+                        update_str = ", ".join(f"{c} = excluded.{c}" for c in update_cols)
+                        
+                        q = f"""
+                            INSERT INTO {table} ({cols}) 
+                            VALUES ({placeholders})
+                            ON CONFLICT({pk}) DO UPDATE SET {update_str}
+                        """
+                        cur.execute(q, tuple(final_row_dict.values()))
+                        
+            except Exception as e:
+                print(f"Error syncing table '{table}': {e}")
+                
         conn.commit()
     finally:
         try:
