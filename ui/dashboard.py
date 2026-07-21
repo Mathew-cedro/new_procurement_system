@@ -1848,10 +1848,7 @@ class Dashboard(QMainWindow):
             self.refresh_all_data()
             return
             
-        import sqlite3
-        from pathlib import Path
-        db_file = Path(__file__).parent / "procurement.db"
-        conn = sqlite3.connect(db_file, timeout=20.0)
+        conn = database_config.get_db_connection()
         cur = conn.cursor()
         try:
             if db_col == "supplier_name":

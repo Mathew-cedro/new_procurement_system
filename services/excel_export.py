@@ -3,6 +3,7 @@ from pathlib import Path
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+import database as database_config
 
 # Category color fills
 cat_colors = {
@@ -162,8 +163,7 @@ def export_master_data(output_path, filters=None):
     applies optional filters (status, division, date range), and exports
     them to a styled native Excel worksheet (.xlsx).
     """
-    db_file = Path(__file__).parent / "procurement.db"
-    conn = sqlite3.connect(db_file, timeout=20.0)
+    conn = database_config.get_db_connection()
     cur = conn.cursor()
     
     query = get_base_query() + " ORDER BY p.project_id"
@@ -247,8 +247,7 @@ def export_project_timeline(project_id, output_path):
     """
     Queries all timeline data related to a specific project and exports it to a styled native Excel worksheet (.xlsx).
     """
-    db_file = Path(__file__).parent / "procurement.db"
-    conn = sqlite3.connect(db_file, timeout=20.0)
+    conn = database_config.get_db_connection()
     cur = conn.cursor()
     
     query = get_base_query() + " WHERE p.project_id = ? ORDER BY p.project_id"

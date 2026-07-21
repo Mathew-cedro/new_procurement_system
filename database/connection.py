@@ -1,13 +1,22 @@
+import sys
 import sqlite3
 import json
 from pathlib import Path
+
+# Resolve directories dynamically for both standard python launch and PyInstaller frozen bundle
+if getattr(sys, 'frozen', False):
+    SCHEMA_DIR = Path(sys._MEIPASS)
+    ROOT_DIR = Path(sys.executable).parent
+else:
+    SCHEMA_DIR = Path(__file__).parent.parent
+    ROOT_DIR = Path(__file__).parent.parent
 
 DB_PATH = "procurement.db"
 
 def seed():
     # 1. Back up system_settings if they exist
     settings_backup = {}
-    db_file = Path(__file__).parent.parent / DB_PATH
+    db_file = ROOT_DIR / DB_PATH
     if db_file.exists():
         try:
             conn = sqlite3.connect(db_file)
@@ -23,7 +32,7 @@ def seed():
     conn = sqlite3.connect(db_file)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.executescript(Path(Path(__file__).parent.parent / "schema_sqlite.sql").read_text())
+    conn.executescript(Path(SCHEMA_DIR / "schema_sqlite.sql").read_text())
 
     # 2. Restore system_settings backup
     if settings_backup:
@@ -469,7 +478,7 @@ def check_and_update_schema(conn):
 
 
 def get_db_connection():
-    db_file = Path(__file__).parent.parent / DB_PATH
+    db_file = ROOT_DIR / DB_PATH
     conn = sqlite3.connect(db_file, timeout=20.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
