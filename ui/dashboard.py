@@ -2050,13 +2050,19 @@ class Dashboard(QMainWindow):
                 QMessageBox.information(self, "Sync Complete", f"All SQLite tables successfully pushed to Google Sheets!\n\nSpreadsheet ID: {result}")
             else:
                 self.statusBar().showMessage(f"Sync Failed: {result}", 5000)
-                reply = QMessageBox.critical(
-                    self, "Authentication Failed",
-                    f"Synchronization failed:\n{result}\n\nWould you like to open the Settings tab to locate your credentials file?",
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
-                )
-                if reply == QMessageBox.Yes:
-                    self.switch_page(3)
+                if "NETWORK_ERROR" in str(result) or "getaddrinfo" in str(result) or "nameresolutionerror" in str(result).lower():
+                    QMessageBox.warning(
+                        self, "📡 Internet Connection Required",
+                        "Unable to connect to Google Servers.\n\nPlease check your internet connection or Wi-Fi settings and try again.\n\n(Your local records in SQLite remain completely safe!)"
+                    )
+                else:
+                    reply = QMessageBox.critical(
+                        self, "Authentication Failed",
+                        f"Synchronization failed:\n{result}\n\nWould you like to open the Settings tab to locate your credentials file?",
+                        QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+                    )
+                    if reply == QMessageBox.Yes:
+                        self.switch_page(3)
                 
         self.push_worker.finished.connect(on_push_finished)
         self.push_worker.start()
@@ -2098,13 +2104,19 @@ class Dashboard(QMainWindow):
                 self.refresh_all_data()
             else:
                 self.statusBar().showMessage(f"Pull Failed: {result}", 5000)
-                reply = QMessageBox.critical(
-                    self, "Authentication Failed",
-                    f"Pull failed:\n{result}\n\nWould you like to open the Settings tab to locate your credentials file?",
-                    QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
-                )
-                if reply == QMessageBox.Yes:
-                    self.switch_page(3)
+                if "NETWORK_ERROR" in str(result) or "getaddrinfo" in str(result) or "nameresolutionerror" in str(result).lower():
+                    QMessageBox.warning(
+                        self, "📡 Internet Connection Required",
+                        "Unable to connect to Google Servers.\n\nPlease check your internet connection or Wi-Fi settings and try again.\n\n(Your local records in SQLite remain completely safe!)"
+                    )
+                else:
+                    reply = QMessageBox.critical(
+                        self, "Authentication Failed",
+                        f"Pull failed:\n{result}\n\nWould you like to open the Settings tab to locate your credentials file?",
+                        QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+                    )
+                    if reply == QMessageBox.Yes:
+                        self.switch_page(3)
                 
         self.pull_worker.finished.connect(on_pull_finished)
         self.pull_worker.start()

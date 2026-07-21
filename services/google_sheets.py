@@ -60,14 +60,20 @@ def get_google_services():
     if os.path.exists(token_path):
         creds = Credentials.from_authorized_user_file(token_path, SCOPES)
         
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
-            creds = flow.run_local_server(port=0)
-        with open(token_path, 'w') as token:
-            token.write(creds.to_json())
+    try:
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+            else:
+                flow = InstalledAppFlow.from_client_secrets_file(creds_path, SCOPES)
+                creds = flow.run_local_server(port=0)
+            with open(token_path, 'w') as token:
+                token.write(creds.to_json())
+    except Exception as err:
+        err_str = str(err)
+        if any(net_err in err_str.lower() for net_err in ["nameresolutionerror", "getaddrinfo failed", "failed to resolve", "max retries exceeded", "connectionrefused", "timed out", "timeout"]):
+            raise Exception("NETWORK_ERROR: Unable to connect to Google servers. Please check your internet connection and try again.")
+        raise err
             
     sheets_service = build('sheets', 'v4', credentials=creds)
     drive_service = build('drive', 'v3', credentials=creds)
@@ -689,4 +695,7 @@ class GoogleSyncWorker(QThread):
                 self.result_url = url
                 self.finished.emit(True, url)
         except Exception as e:
-            self.finished.emit(False, str(e))
+            err_msg = str(e)
+            if any(net_err in err_msg.lower() for net_err in ["nameresolutionerror", "getaddrinfo failed", "failed to resolve", "max retries exceeded", "connectionrefused", "timed out", "timeout"]):
+                err_msg = "NETWORK_ERROR: Unable to connect to Google servers. Please check your internet connection and try again."
+            self.finished.emit(False, err_msg)
