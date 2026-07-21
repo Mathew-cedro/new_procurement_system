@@ -439,7 +439,7 @@ def check_and_update_schema(conn):
                 print(f"Error during database migration: {e}")
     else:
         # DB doesn't exist or is empty, execute standard table creation
-        schema_path = Path(__file__).parent / "schema_sqlite.sql"
+        schema_path = SCHEMA_DIR / "schema_sqlite.sql"
         if schema_path.exists():
             cur.executescript(schema_path.read_text())
             conn.commit()
@@ -452,9 +452,15 @@ def check_and_update_schema(conn):
         pass  # Already exists
 
     default_creds = ""
-    creds_file = Path(__file__).parent / "procurement_credentials.json"
-    if creds_file.exists():
-        default_creds = str(creds_file.resolve())
+    for candidate in ["procurement_credentials.json", "credentials.json"]:
+        p1 = ROOT_DIR / candidate
+        p2 = SCHEMA_DIR / candidate
+        if p1.exists():
+            default_creds = str(p1.resolve())
+            break
+        elif p2.exists():
+            default_creds = str(p2.resolve())
+            break
 
     # Ensure system_settings table exists and is seeded
     cur.execute("""

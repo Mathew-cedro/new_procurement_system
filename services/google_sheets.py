@@ -23,7 +23,35 @@ def col_index_to_letter(col_idx):
 def get_google_services():
     """Authenticates the user and returns Sheets and Drive API services."""
     import database as database_config
+    from database.connection import ROOT_DIR, SCHEMA_DIR
     creds_path = database_config.get_system_setting("google_credentials_path", "")
+    
+    # Check if creds_path exists directly or relative to ROOT_DIR / SCHEMA_DIR
+    if creds_path:
+        target = Path(creds_path)
+        if target.exists():
+            creds_path = str(target.resolve())
+        elif (ROOT_DIR / creds_path).exists():
+            creds_path = str((ROOT_DIR / creds_path).resolve())
+            database_config.set_system_setting("google_credentials_path", creds_path)
+        elif (SCHEMA_DIR / creds_path).exists():
+            creds_path = str((SCHEMA_DIR / creds_path).resolve())
+            database_config.set_system_setting("google_credentials_path", creds_path)
+            
+    # If still not found, auto-discover in ROOT_DIR or SCHEMA_DIR
+    if not creds_path or not os.path.exists(creds_path):
+        for candidate in ["procurement_credentials.json", "credentials.json"]:
+            p1 = ROOT_DIR / candidate
+            p2 = SCHEMA_DIR / candidate
+            if p1.exists():
+                creds_path = str(p1.resolve())
+                database_config.set_system_setting("google_credentials_path", creds_path)
+                break
+            elif p2.exists():
+                creds_path = str(p2.resolve())
+                database_config.set_system_setting("google_credentials_path", creds_path)
+                break
+
     if not creds_path or not os.path.exists(creds_path):
         raise Exception("Google credentials.json path is empty or the file does not exist. Please configure it in the Settings tab.")
         

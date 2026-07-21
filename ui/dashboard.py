@@ -2026,7 +2026,13 @@ class Dashboard(QMainWindow):
         import database as database_config
         creds = database_config.get_system_setting("google_credentials_path", "")
         if not creds or not os.path.exists(creds):
-            QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path in the Settings tab first.")
+            reply = QMessageBox.warning(
+                self, "Credentials Needed",
+                "Google credentials file path is empty or does not exist.\n\nWould you like to open the Settings tab to select your credentials.json file?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                self.switch_page(3)
             return
             
         self.statusBar().showMessage("Syncing database to Google Sheets in background...", 5000)
@@ -2044,7 +2050,13 @@ class Dashboard(QMainWindow):
                 QMessageBox.information(self, "Sync Complete", f"All SQLite tables successfully pushed to Google Sheets!\n\nSpreadsheet ID: {result}")
             else:
                 self.statusBar().showMessage(f"Sync Failed: {result}", 5000)
-                QMessageBox.critical(self, "Sync Failed", f"Synchronization failed:\n{result}")
+                reply = QMessageBox.critical(
+                    self, "Authentication Failed",
+                    f"Synchronization failed:\n{result}\n\nWould you like to open the Settings tab to locate your credentials file?",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+                )
+                if reply == QMessageBox.Yes:
+                    self.switch_page(3)
                 
         self.push_worker.finished.connect(on_push_finished)
         self.push_worker.start()
@@ -2053,7 +2065,13 @@ class Dashboard(QMainWindow):
         import database as database_config
         creds = database_config.get_system_setting("google_credentials_path", "")
         if not creds or not os.path.exists(creds):
-            QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path in the Settings tab first.")
+            reply = QMessageBox.warning(
+                self, "Credentials Needed",
+                "Google credentials file path is empty or does not exist.\n\nWould you like to open the Settings tab to select your credentials.json file?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+            )
+            if reply == QMessageBox.Yes:
+                self.switch_page(3)
             return
             
         reply = QMessageBox.question(
@@ -2080,7 +2098,13 @@ class Dashboard(QMainWindow):
                 self.refresh_all_data()
             else:
                 self.statusBar().showMessage(f"Pull Failed: {result}", 5000)
-                QMessageBox.critical(self, "Sync Failed", f"Pull failed:\n{result}")
+                reply = QMessageBox.critical(
+                    self, "Authentication Failed",
+                    f"Pull failed:\n{result}\n\nWould you like to open the Settings tab to locate your credentials file?",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes
+                )
+                if reply == QMessageBox.Yes:
+                    self.switch_page(3)
                 
         self.pull_worker.finished.connect(on_pull_finished)
         self.pull_worker.start()
