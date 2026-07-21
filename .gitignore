@@ -12,3 +12,9 @@ uploaded_documents/
 # Temporary files
 tempCodeRunnerFile.py
 *.tmp
+
+# PyInstaller Build Artifacts
+build/
+dist/
+*.spec
+*.exe

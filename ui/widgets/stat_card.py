@@ -27,3 +27,25 @@ class StatCard(QFrame):
 
     def update_value(self, value):
         self.val_label.setText(value)
+
+    def update_theme(self, theme="dark"):
+        if theme == "light":
+            self.setStyleSheet("""
+                QFrame {
+                    background-color: #ffffff;
+                    border: 1px solid #cbd5e1;
+                    border-radius: 8px;
+                    padding: 15px;
+                }
+            """)
+            self.title_label.setStyleSheet("color: #64748b; font-size: 12px; font-weight: bold;")
+        else:
+            self.setStyleSheet("""
+                QFrame {
+                    background-color: #2b2b36;
+                    border: 1px solid #3a3a4a;
+                    border-radius: 8px;
+                    padding: 15px;
+                }
+            """)
+            self.title_label.setStyleSheet("color: #a0a0b0; font-size: 12px; font-weight: bold;")

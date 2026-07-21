@@ -10,12 +10,19 @@ class SimpleChart(QWidget):
         self.setMinimumHeight(250)
         self.data = []
         self.labels = []
+        self.theme = "dark"
         self.load_data()
+
+    def set_theme(self, theme):
+        self.theme = theme
+        self.update()
 
     def load_data(self):
         try:
+            self.theme = database_config.get_theme_setting()
             projects = database_config.get_projects()
             if projects:
+                # Take up to last 7 projects for display, chronological
                 projects = projects[:7]
                 projects.reverse()
                 self.data = [p.get("abc_amount", 0.0) or 0.0 for p in projects]
@@ -32,7 +39,7 @@ class SimpleChart(QWidget):
         if not self.data:
             return
             
-        theme = database_config.get_theme_setting()
+        theme = getattr(self, "theme", "dark")
         if theme == "light":
             grid_color = QColor("#cbd5e1")
             text_color = QColor("#64748b")

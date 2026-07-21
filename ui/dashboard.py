@@ -1395,6 +1395,43 @@ class Dashboard(QMainWindow):
             self.btn_light_theme.setChecked(False)
             self.btn_dark_theme.setStyleSheet(f"QPushButton {{ background-color: #00ffcc; color: #13131a; font-weight: bold; border-radius: 5px; border: none; }}")
             self.btn_light_theme.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: 1px solid {c_border_card}; border-radius: 5px; }} QPushButton:hover {{ background-color: #2b2b36; }}")
+            
+        # Update metric cards and chart widgets theme
+        if hasattr(self, "budget_card"):
+            self.budget_card.update_theme(theme)
+        if hasattr(self, "awarded_card"):
+            self.awarded_card.update_theme(theme)
+        if hasattr(self, "paid_card"):
+            self.paid_card.update_theme(theme)
+        if hasattr(self, "chart"):
+            self.chart.set_theme(theme)
+            
+        # Update pagination controls theme
+        if hasattr(self, "btn_prev_page") and hasattr(self, "btn_next_page"):
+            if theme == "light":
+                btn_pag_style = """
+                    QPushButton {
+                        background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1;
+                        border-radius: 4px; font-weight: bold; font-size: 12px;
+                    }
+                    QPushButton:hover { background-color: #f1f5f9; border: 1px solid #0284c7; }
+                    QPushButton:disabled { background-color: #f8fafc; color: #94a3b8; border: 1px solid #e2e8f0; }
+                """
+                self.btn_prev_page.setStyleSheet(btn_pag_style)
+                self.btn_next_page.setStyleSheet(btn_pag_style)
+                self.lbl_page_num.setStyleSheet("color: #64748b; font-size: 13px; font-weight: bold; margin-left: 10px; margin-right: 10px;")
+            else:
+                btn_pag_style = """
+                    QPushButton {
+                        background-color: #2b2b36; color: #ffffff; border: 1px solid #3a3a4a;
+                        border-radius: 4px; font-weight: bold; font-size: 12px;
+                    }
+                    QPushButton:hover { background-color: #323242; border: 1px solid #00ffcc; }
+                    QPushButton:disabled { background-color: #1e1e24; color: #5a5a6a; border: 1px solid #2b2b36; }
+                """
+                self.btn_prev_page.setStyleSheet(btn_pag_style)
+                self.btn_next_page.setStyleSheet(btn_pag_style)
+                self.lbl_page_num.setStyleSheet("color: #a0a0b0; font-size: 13px; font-weight: bold; margin-left: 10px; margin-right: 10px;")
                 
     def refresh_all_data(self):
         """Fetches the latest metrics and populates all widgets, lists, grids, and charts."""

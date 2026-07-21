@@ -291,7 +291,19 @@ class ProjectDetailDialog(QDialog):
             
         self.setWindowTitle(f"Project Timeline - {self.project_data.get('proj_id_no', 'N/A')}")
         self.resize(1000, 820)
-        self.setStyleSheet("background-color: #1e1e24; color: #ffffff;")
+        theme = database_config.get_theme_setting()
+        if theme == "light":
+            c_bg_app = "#f1f5f9"
+            c_bg_card = "#ffffff"
+            c_border_card = "#cbd5e1"
+            c_text_main = "#0f172a"
+        else:
+            c_bg_app = "#1e1e24"
+            c_bg_card = "#13131a"
+            c_border_card = "#2b2b36"
+            c_text_main = "#ffffff"
+            
+        self.setStyleSheet(f"background-color: {c_bg_app}; color: {c_text_main};")
         
         # Main Layout
         self.dialog_layout = QVBoxLayout(self)
@@ -300,7 +312,7 @@ class ProjectDetailDialog(QDialog):
         
         # Header Section
         self.header = QFrame()
-        self.header.setStyleSheet("background-color: #13131a; border-radius: 8px; border: 1px solid #2b2b36;")
+        self.header.setStyleSheet(f"background-color: {c_bg_card}; border-radius: 8px; border: 1px solid {c_border_card};")
         self.header_layout = QVBoxLayout(self.header)
         self.header_layout.setContentsMargins(20, 15, 20, 15)
         self.header_layout.setSpacing(8)
