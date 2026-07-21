@@ -184,8 +184,21 @@ def migrate_local_files_to_drive():
     cur = conn.cursor()
     cur.execute("PRAGMA foreign_keys = OFF")
     
-    base_dir = Path(__file__).parent
-    
+    from database.connection import ROOT_DIR, SCHEMA_DIR
+    base_dir = ROOT_DIR
+
+    def resolve_local_file(val):
+        if not val or str(val).startswith("http"):
+            return None
+        p = Path(val)
+        if p.is_absolute() and p.exists():
+            return p
+        for root in [ROOT_DIR, SCHEMA_DIR, Path(__file__).parent, Path(__file__).parent.parent]:
+            cand = root / val
+            if cand.exists():
+                return cand
+        return None
+
     # 1. Projects
     try:
         cur.execute("SELECT project_id, saro_pdf, ppmp_pdf, market_scoping_pdf, tech_specs_pdf, abstract_quotations_pdf FROM projects")
@@ -194,15 +207,14 @@ def migrate_local_files_to_drive():
             updates = {}
             for col in ["saro_pdf", "ppmp_pdf", "market_scoping_pdf", "tech_specs_pdf", "abstract_quotations_pdf"]:
                 val = row[col]
-                if val and not str(val).startswith("http"):
-                    local_path = base_dir / val
-                    if local_path.exists():
-                        try:
-                            filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}{local_path.suffix}"
-                            url = upload_file_to_drive(str(local_path), filename)
-                            updates[col] = url
-                        except Exception as e:
-                            print(f"Failed to migrate project file {val}: {e}")
+                local_path = resolve_local_file(val)
+                if local_path:
+                    try:
+                        filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}{local_path.suffix}"
+                        url = upload_file_to_drive(str(local_path), filename)
+                        updates[col] = url
+                    except Exception as e:
+                        print(f"Failed to migrate project file {val}: {e}")
             if updates:
                 cols = ", ".join(f"{k} = ?" for k in updates.keys())
                 params = list(updates.values()) + [pid]
@@ -219,15 +231,14 @@ def migrate_local_files_to_drive():
             updates = {}
             for col in ["noa_pdf", "signed_contract_pdf", "request_order_pdf", "bac_resolution_pdf"]:
                 val = row[col]
-                if val and not str(val).startswith("http"):
-                    local_path = base_dir / val
-                    if local_path.exists():
-                        try:
-                            filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}{local_path.suffix}"
-                            url = upload_file_to_drive(str(local_path), filename)
-                            updates[col] = url
-                        except Exception as e:
-                            print(f"Failed to migrate contract file {val}: {e}")
+                local_path = resolve_local_file(val)
+                if local_path:
+                    try:
+                        filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}{local_path.suffix}"
+                        url = upload_file_to_drive(str(local_path), filename)
+                        updates[col] = url
+                    except Exception as e:
+                        print(f"Failed to migrate contract file {val}: {e}")
             if updates:
                 cols = ", ".join(f"{k} = ?" for k in updates.keys())
                 params = list(updates.values()) + [cid]
@@ -248,15 +259,14 @@ def migrate_local_files_to_drive():
             updates = {}
             for col in ["iar_pdf", "po_pdf"]:
                 val = row[col]
-                if val and not str(val).startswith("http"):
-                    local_path = base_dir / val
-                    if local_path.exists():
-                        try:
-                            filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}_{mid}{local_path.suffix}"
-                            url = upload_file_to_drive(str(local_path), filename)
-                            updates[col] = url
-                        except Exception as e:
-                            print(f"Failed to migrate delivery file {val}: {e}")
+                local_path = resolve_local_file(val)
+                if local_path:
+                    try:
+                        filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}_{mid}{local_path.suffix}"
+                        url = upload_file_to_drive(str(local_path), filename)
+                        updates[col] = url
+                    except Exception as e:
+                        print(f"Failed to migrate delivery file {val}: {e}")
             if updates:
                 cols = ", ".join(f"{k} = ?" for k in updates.keys())
                 params = list(updates.values()) + [mid]
@@ -275,15 +285,14 @@ def migrate_local_files_to_drive():
             pid = proj_row["project_id"] if proj_row else cid
             
             val = row["warranty_certificate_pdf"]
-            if val and not str(val).startswith("http"):
-                local_path = base_dir / val
-                if local_path.exists():
-                    try:
-                        filename = f"doc_{pid}_WARRANTY{local_path.suffix}"
-                        url = upload_file_to_drive(str(local_path), filename)
-                        cur.execute("UPDATE warranties SET warranty_certificate_pdf = ? WHERE warranty_id = ?", (url, wid))
-                    except Exception as e:
-                        print(f"Failed to migrate warranty file {val}: {e}")
+            local_path = resolve_local_file(val)
+            if local_path:
+                try:
+                    filename = f"doc_{pid}_WARRANTY{local_path.suffix}"
+                    url = upload_file_to_drive(str(local_path), filename)
+                    cur.execute("UPDATE warranties SET warranty_certificate_pdf = ? WHERE warranty_id = ?", (url, wid))
+                except Exception as e:
+                    print(f"Failed to migrate warranty file {val}: {e}")
     except Exception as e:
         print(f"Failed to scan warranty files for migration: {e}")
                     

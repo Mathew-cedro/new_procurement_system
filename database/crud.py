@@ -787,7 +787,8 @@ def save_project_document(target_id, document_type, file_path):
     from pathlib import Path
     
     try:
-        dest_dir = Path(__file__).parent / "uploaded_documents"
+        from .connection import ROOT_DIR
+        dest_dir = ROOT_DIR / "uploaded_documents"
         dest_dir.mkdir(exist_ok=True)
         
         src_path = Path(file_path)
