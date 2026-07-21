@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QUrl
 from PySide6.QtGui import QCursor, QDesktopServices
 import os
-import database_config
+import database as database_config
 
 class ProjectCardWidget(QFrame):
     clicked = Signal(str)  # Emits project_id when clicked
@@ -24,7 +24,7 @@ class ProjectCardWidget(QFrame):
         self.setMaximumHeight(180)
         
         # Style sheet with hover effects
-        import database_config
+        import database as database_config
         theme = database_config.get_theme_setting()
         if theme == "light":
             c_bg_card = "#ffffff"
@@ -280,7 +280,7 @@ class ProjectDetailDialog(QDialog):
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint | Qt.WindowMinimizeButtonHint)
         
         # Fetch data
-        import database_config
+        import database as database_config
         self.project_data = database_config.get_project_detail(project_id)
         
         if not self.project_data:
@@ -359,7 +359,7 @@ class ProjectDetailDialog(QDialog):
             try:
                 import tempfile
                 import shutil
-                import database_config
+                import database as database_config
                 
                 # Fetch BLOB from database
                 content, ref_name = database_config.get_document_data(self.project_id, doc_type)
@@ -872,7 +872,7 @@ class ProjectDetailDialog(QDialog):
         """
 
     def refresh_data(self):
-        import database_config
+        import database as database_config
         self.project_data = database_config.get_project_detail(self.project_id)
         self.build_timeline()
         if self.parent() and hasattr(self.parent(), "refresh_all_data"):
@@ -881,7 +881,7 @@ class ProjectDetailDialog(QDialog):
     def save_general_remarks(self):
         remarks_txt = self.remarks_edit.toPlainText().strip()
         try:
-            import database_config
+            import database as database_config
             conn = database_config.get_db_connection()
             cur = conn.cursor()
             cur.execute("UPDATE projects SET remarks = ? WHERE project_id = ?", (remarks_txt, self.project_id))
@@ -893,67 +893,67 @@ class ProjectDetailDialog(QDialog):
             QMessageBox.critical(self, "Error", f"Failed to save remarks: {e}")
 
     def add_bidding_details(self):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddBidDialog(self.project_id, self)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def edit_project_details(self):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.CreateProjectDialog(self, self.project_data)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def edit_bidding_details(self, bid_data):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddBidDialog(self.project_id, self, bid_data)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def add_contract_details(self, bid_id):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddContractDialog(self.project_id, bid_id, self)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def edit_contract_details(self, contract_data):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddContractDialog(self.project_id, contract_data.get("bid_id"), self, contract_data)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def add_deliverable_details(self, contract_id):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddDeliverableDialog(contract_id, self)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def edit_deliverable_details(self, deliverable_data):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddDeliverableDialog(deliverable_data.get("contract_id"), self, deliverable_data)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def add_payment_details(self, contract_id, contract_data):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddPaymentDialog(contract_id, contract_data, self)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def edit_payment_details(self, payment_data):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddPaymentDialog(payment_data.get("contract_id"), self.project_data["contracts"][0], self, payment_data)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def add_warranty_details(self, contract_id):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddWarrantyDialog(contract_id, self)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
 
     def edit_warranty_details(self, warranty_data):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddWarrantyDialog(warranty_data.get("contract_id"), self, warranty_data)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_data()
@@ -969,7 +969,7 @@ class ProjectDetailDialog(QDialog):
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No
         )
         if reply == QMessageBox.Yes:
-            import database_config
+            import database as database_config
             success, error = database_config.delete_project(self.project_id)
             if success:
                 QMessageBox.information(self, "Deleted", f"Project {proj_id} has been successfully deleted.")

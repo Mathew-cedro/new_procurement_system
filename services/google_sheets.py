@@ -14,7 +14,7 @@ SCOPES = [
 
 def get_google_services():
     """Authenticates the user and returns Sheets and Drive API services."""
-    import database_config
+    import database as database_config
     creds_path = database_config.get_system_setting("google_credentials_path", "")
     if not creds_path or not os.path.exists(creds_path):
         raise Exception("Google credentials.json path is empty or the file does not exist. Please configure it in the Settings tab.")
@@ -40,7 +40,7 @@ def get_google_services():
 def get_connected_email():
     """Retrieves the email address of the authenticated Google account, or None if not logged in."""
     try:
-        import database_config
+        import database as database_config
         creds_path = database_config.get_system_setting("google_credentials_path", "")
         if not creds_path or not os.path.exists(creds_path):
             return None
@@ -60,7 +60,7 @@ def get_connected_email():
 
 def ensure_spreadsheet():
     """Ensures a Google Spreadsheet exists, creating a new one if necessary."""
-    import database_config
+    import database as database_config
     spreadsheet_id = database_config.get_system_setting("google_spreadsheet_id", "")
     sheets_service, drive_service = get_google_services()
     
@@ -99,7 +99,7 @@ def ensure_spreadsheet():
 
 def ensure_drive_folder():
     """Ensures a Google Drive folder exists, creating a new one if necessary."""
-    import database_config
+    import database as database_config
     folder_id = database_config.get_system_setting("google_drive_folder_id", "")
     sheets_service, drive_service = get_google_services()
     
@@ -135,7 +135,7 @@ def ensure_drive_folder():
 
 def migrate_local_files_to_drive():
     """Finds any local file paths in the database, uploads them to Drive, and updates database records."""
-    import database_config
+    import database as database_config
     from pathlib import Path
     
     conn = database_config.get_db_connection()
@@ -260,7 +260,7 @@ def push_sqlite_to_sheets():
     sheets_service, drive_service = get_google_services()
     spreadsheet_id = ensure_spreadsheet()
     
-    import database_config
+    import database as database_config
     conn = database_config.get_db_connection()
     cur = conn.cursor()
     
@@ -447,7 +447,7 @@ def pull_sheets_to_sqlite():
     sheets_service, drive_service = get_google_services()
     spreadsheet_id = ensure_spreadsheet()
     
-    import database_config
+    import database as database_config
     conn = database_config.get_db_connection()
     cur = conn.cursor()
     

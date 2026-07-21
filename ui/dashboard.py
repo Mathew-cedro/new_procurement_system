@@ -11,9 +11,10 @@ from PySide6.QtWidgets import (
     QSplashScreen, QProgressBar
 )
 
-import database_config
-import Cardsystem
-import form_dialogs
+import database as database_config
+import ui.cards as Cardsystem
+import ui.dialogs as form_dialogs
+from ui.widgets import StatCard, SimpleChart
 
 class PremiumSplashScreen(QSplashScreen):
     def __init__(self):
@@ -101,119 +102,6 @@ class PremiumSplashScreen(QSplashScreen):
         self.progress_bar.setValue(val)
         self.status_lbl.setText(status_text)
         QApplication.processEvents()
-
-class StatCard(QFrame):
-    """A custom widget representing a metric card."""
-    def __init__(self, title, value, color_hex):
-        super().__init__()
-        self.color_hex = color_hex
-        self.setStyleSheet(f"""
-            QFrame {{
-                background-color: #2b2b36;
-                border: 1px solid #3a3a4a;
-                border-radius: 8px;
-                padding: 15px;
-            }}
-        """)
-        layout = QVBoxLayout(self)
-        
-        self.title_label = QLabel(title)
-        self.title_label.setStyleSheet("color: #a0a0b0; font-size: 12px; font-weight: bold;")
-        
-        self.val_label = QLabel(value)
-        self.val_label.setStyleSheet(f"color: {color_hex}; font-size: 22px; font-weight: bold;")
-        
-        layout.addWidget(self.title_label)
-        layout.addWidget(self.val_label)
-
-    def update_value(self, value):
-        self.val_label.setText(value)
-
-class SimpleChart(QWidget):
-    """A custom chart widget drawn using QPainter showing project budgets."""
-    def __init__(self):
-        super().__init__()
-        self.setMinimumHeight(250)
-        self.data = []
-        self.labels = []
-        self.load_data()
-
-    def load_data(self):
-        try:
-            projects = database_config.get_projects()
-            if projects:
-                # Take up to last 7 projects for display, chronological
-                projects = projects[:7]
-                projects.reverse()
-                self.data = [p.get("abc_amount", 0.0) or 0.0 for p in projects]
-                self.labels = [p.get("proj_id_no", "N/A") for p in projects]
-            else:
-                self.data = [0]
-                self.labels = ["None"]
-        except Exception as e:
-            self.data = [0]
-            self.labels = ["Error"]
-            print(f"Error loading chart data: {e}")
-
-    def paintEvent(self, event):
-        if not self.data:
-            return
-            
-        import database_config
-        theme = database_config.get_theme_setting()
-        if theme == "light":
-            grid_color = QColor("#cbd5e1")
-            text_color = QColor("#64748b")
-            accent_color = QColor("#0284c7")
-        else:
-            grid_color = QColor("#3a3a4a")
-            text_color = QColor("#a0a0b0")
-            accent_color = QColor("#00ffcc")
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        
-        # Draw background grid
-        painter.setPen(QPen(grid_color, 1, Qt.DashLine))
-        for i in range(1, 4):
-            y = int(self.height() * (i / 4))
-            painter.drawLine(40, y, self.width() - 20, y)
-            
-        padding = 60
-        width_step = (self.width() - padding - 40) / (len(self.data) - 1) if len(self.data) > 1 else self.width() - padding - 40
-        points = []
-        
-        max_val = max(self.data) if max(self.data) > 0 else 1
-        
-        for i, val in enumerate(self.data):
-            x = int(padding + (i * width_step))
-            y = int(self.height() - 50 - (val / max_val * (self.height() - 80)))
-            points.append((x, y))
-            
-            # X Labels
-            painter.setPen(text_color)
-            painter.setFont(QFont("Arial", 8))
-            painter.drawText(x - 20, self.height() - 15, self.labels[i])
-            
-            # Y value label
-            painter.setPen(accent_color)
-            painter.setFont(QFont("Arial", 8))
-            painter.drawText(x - 20, y - 10, f"₱{val/1000:,.0f}k")
-
-        # Draw the line graph
-        painter.setPen(QPen(accent_color, 3, Qt.SolidLine))
-        if len(points) > 1:
-            for i in range(len(points) - 1):
-                painter.drawLine(points[i][0], points[i][1], points[i+1][0], points[i+1][1])
-        else:
-            painter.setBrush(accent_color)
-            painter.drawEllipse(points[0][0] - 6, points[0][1] - 6, 12, 12)
-            
-        # Draw data nodes
-        painter.setBrush(QColor("#ffffff"))
-        painter.setPen(QPen(accent_color, 2))
-        for pt in points:
-            painter.drawEllipse(pt[0] - 4, pt[1] - 4, 8, 8)
 
 class Dashboard(QMainWindow):
     """The main application layout containing the sidebar and stacked views."""
@@ -1021,7 +909,7 @@ class Dashboard(QMainWindow):
         main_layout.addWidget(self.stacked_widget)
         
         # Load theme setting from DB and apply it
-        import database_config
+        import database as database_config
         self.current_theme = database_config.get_theme_setting()
         
         # Load Google Integration configuration
@@ -1058,7 +946,7 @@ class Dashboard(QMainWindow):
 
     def change_theme(self, theme_name):
         self.current_theme = theme_name
-        import database_config
+        import database as database_config
         database_config.update_theme_setting(theme_name)
         self.update_theme_styles()
         # Trigger redraw of chart
@@ -1594,7 +1482,7 @@ class Dashboard(QMainWindow):
 
 
     def create_new_project(self):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.CreateProjectDialog(self)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_all_data()
@@ -1783,13 +1671,13 @@ class Dashboard(QMainWindow):
             self.grid_layout.setRowStretch(row, 1)
 
     def create_new_project(self):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.CreateProjectDialog(self)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_all_data()
 
     def create_new_supplier(self):
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddSupplierDialog(self)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_all_data()
@@ -1814,7 +1702,7 @@ class Dashboard(QMainWindow):
             QMessageBox.critical(self, "Error", "Could not locate selected supplier data.")
             return
             
-        import form_dialogs
+        import ui.dialogs as form_dialogs
         dialog = form_dialogs.AddSupplierDialog(self, s_data)
         if dialog.exec() == QDialog.Accepted:
             self.refresh_all_data()
@@ -1956,12 +1844,12 @@ class Dashboard(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(self, "Select credentials.json", "", "JSON Files (*.json)")
         if file_path:
             self.creds_input.setText(file_path)
-            import database_config
+            import database as database_config
             database_config.set_system_setting("google_credentials_path", file_path)
             QMessageBox.information(self, "Credentials Selected", "Google OAuth Client Secrets JSON file configured successfully!")
 
     def create_new_google_sheet(self):
-        import database_config
+        import database as database_config
         creds = database_config.get_system_setting("google_credentials_path", "")
         if not creds or not os.path.exists(creds):
             QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path first before creating a spreadsheet.")
@@ -1969,7 +1857,7 @@ class Dashboard(QMainWindow):
         
         self.setCursor(Qt.WaitCursor)
         try:
-            import google_sync
+            import services.google_sheets as google_sync
             sid = google_sync.ensure_spreadsheet()
             self.sheet_id_input.setText(sid)
             QMessageBox.information(self, "Spreadsheet Created", f"Successfully created a new Google Spreadsheet online!\n\nSpreadsheet ID: {sid}\n\nYou can share this ID with other team members.")
@@ -1979,7 +1867,7 @@ class Dashboard(QMainWindow):
             self.unsetCursor()
 
     def create_new_google_folder(self):
-        import database_config
+        import database as database_config
         creds = database_config.get_system_setting("google_credentials_path", "")
         if not creds or not os.path.exists(creds):
             QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path first before creating a folder.")
@@ -1987,7 +1875,7 @@ class Dashboard(QMainWindow):
             
         self.setCursor(Qt.WaitCursor)
         try:
-            import google_sync
+            import services.google_sheets as google_sync
             fid = google_sync.ensure_drive_folder()
             self.folder_id_input.setText(fid)
             QMessageBox.information(self, "Folder Created", f"Successfully created a new Google Drive Folder online!\n\nFolder ID: {fid}")
@@ -1997,7 +1885,7 @@ class Dashboard(QMainWindow):
             self.unsetCursor()
 
     def on_google_config_changed(self):
-        import database_config
+        import database as database_config
         database_config.set_system_setting("google_spreadsheet_id", self.sheet_id_input.text().strip())
         database_config.set_system_setting("google_drive_folder_id", self.folder_id_input.text().strip())
 
@@ -2022,7 +1910,7 @@ class Dashboard(QMainWindow):
             self.push_data_to_sheets()
 
     def push_data_to_sheets(self):
-        import database_config
+        import database as database_config
         creds = database_config.get_system_setting("google_credentials_path", "")
         if not creds or not os.path.exists(creds):
             QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path in the Settings tab first.")
@@ -2032,7 +1920,7 @@ class Dashboard(QMainWindow):
         self.setCursor(Qt.WaitCursor)
         self.set_sync_buttons_enabled(False)
         
-        from google_sync import GoogleSyncWorker
+        from services.google_sheets import GoogleSyncWorker
         self.push_worker = GoogleSyncWorker(action_type="push")
         
         def on_push_finished(success, result):
@@ -2049,7 +1937,7 @@ class Dashboard(QMainWindow):
         self.push_worker.start()
 
     def pull_data_from_sheets(self):
-        import database_config
+        import database as database_config
         creds = database_config.get_system_setting("google_credentials_path", "")
         if not creds or not os.path.exists(creds):
             QMessageBox.warning(self, "Credentials Needed", "Please configure the Client Secrets JSON file path in the Settings tab first.")
@@ -2067,7 +1955,7 @@ class Dashboard(QMainWindow):
         self.setCursor(Qt.WaitCursor)
         self.set_sync_buttons_enabled(False)
         
-        from google_sync import GoogleSyncWorker
+        from services.google_sheets import GoogleSyncWorker
         self.pull_worker = GoogleSyncWorker(action_type="pull")
         
         def on_pull_finished(success, result):
@@ -2085,7 +1973,7 @@ class Dashboard(QMainWindow):
         self.pull_worker.start()
 
     def trigger_background_push(self, silent=True):
-        import database_config
+        import database as database_config
         import os
         creds = database_config.get_system_setting("google_credentials_path", "")
         if not creds or not os.path.exists(creds):
@@ -2099,7 +1987,7 @@ class Dashboard(QMainWindow):
             if hasattr(self, "_bg_push_worker") and self._bg_push_worker.isRunning():
                 return
                 
-            from google_sync import GoogleSyncWorker
+            from services.google_sheets import GoogleSyncWorker
             self._bg_push_worker = GoogleSyncWorker(action_type="push")
             
             if silent:
@@ -2122,7 +2010,7 @@ class Dashboard(QMainWindow):
             print(f"Failed to trigger auto background push: {e}")
 
     def open_google_sheet_in_browser(self):
-        import database_config
+        import database as database_config
         sid = database_config.get_system_setting("google_spreadsheet_id", "").strip()
         if not sid:
             sid = self.sheet_id_input.text().strip()
@@ -2135,7 +2023,7 @@ class Dashboard(QMainWindow):
             QMessageBox.warning(self, "No Spreadsheet ID", "Please specify or create a Google Spreadsheet ID first.")
 
     def open_google_folder_in_browser(self):
-        import database_config
+        import database as database_config
         fid = database_config.get_system_setting("google_drive_folder_id", "").strip()
         if not fid:
             fid = self.folder_id_input.text().strip()
@@ -2148,7 +2036,7 @@ class Dashboard(QMainWindow):
             QMessageBox.warning(self, "No Folder ID", "Please specify or create a Google Drive Folder ID first.")
 
     def perform_google_auto_setup(self):
-        import database_config
+        import database as database_config
         sheet_id = database_config.get_system_setting("google_spreadsheet_id", "")
         folder_id = database_config.get_system_setting("google_drive_folder_id", "")
         creds = database_config.get_system_setting("google_credentials_path", "")
@@ -2157,7 +2045,7 @@ class Dashboard(QMainWindow):
         if creds and os.path.exists(creds):
             if not sheet_id or not folder_id:
                 try:
-                    import google_sync
+                    import services.google_sheets as google_sync
                     created_new = False
                     if not sheet_id:
                         sheet_id = google_sync.ensure_spreadsheet()
@@ -2186,7 +2074,7 @@ class Dashboard(QMainWindow):
             return
             
         try:
-            import database_config
+            import database as database_config
             import os
             
             # 1. Delete token.json
@@ -2218,7 +2106,7 @@ class Dashboard(QMainWindow):
     def connect_google_account(self):
         self.setCursor(Qt.WaitCursor)
         try:
-            import google_sync
+            import services.google_sheets as google_sync
             google_sync.get_google_services()
             QMessageBox.information(self, "Connected", "Google Account successfully connected!")
             self.refresh_google_account_status()
@@ -2229,7 +2117,7 @@ class Dashboard(QMainWindow):
 
     def refresh_google_account_status(self):
         try:
-            import google_sync
+            import services.google_sheets as google_sync
             email = google_sync.get_connected_email()
             if email:
                 self.lbl_auth_status.setText("🟢 Connected")
@@ -2264,29 +2152,3 @@ def clean_temp_files():
     except Exception as e:
         print(f"Error cleaning temp files: {e}")
 
-if __name__ == "__main__":
-    clean_temp_files()
-    app = QApplication(sys.argv)
-    app.aboutToQuit.connect(clean_temp_files)
-    
-    # 1. Instantiate and display custom splash screen
-    splash = PremiumSplashScreen()
-    splash.show()
-    
-    # 2. Step 1: Scanning local folder
-    splash.set_progress(20, "Scanning local cache and temporary files...")
-    
-    # 3. Step 2: Local Database initialization
-    splash.set_progress(50, "Establishing database connection and verifying schemas...")
-    import database_config
-    
-    # 4. Step 3: Starting Dashboard GUI Components
-    splash.set_progress(80, "Starting dashboard visual layout and themes...")
-    window = Dashboard()
-    
-    # 5. Done: transition to main application window
-    splash.set_progress(100, "Done!")
-    splash.finish(window)
-    
-    window.showMaximized()
-    sys.exit(app.exec())
