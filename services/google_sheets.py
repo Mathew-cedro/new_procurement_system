@@ -351,15 +351,38 @@ def push_sqlite_to_sheets(progress_callback=None, force_full=False):
             }
             sheets_service.spreadsheets().batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
             
-        # Filter out columns ending with _data (raw binary columns) for sheets export
-        cur.execute(f"PRAGMA table_info({table})")
-        columns_info = cur.fetchall()
-        select_cols = [c[1] for c in columns_info if not c[1].endswith("_data")]
-        
-        cols_str = ", ".join(f'"{c}"' for c in select_cols)
-        cur.execute(f"SELECT {cols_str} FROM {table}")
-        rows = cur.fetchall()
-        colnames = select_cols
+        if table == "projects":
+            cur.execute("""
+                SELECT 
+                    p.project_id, p.project_name, p.bureau_division, p.focal_person, p.focal_contact_email,
+                    p.nature_of_procurement, p.mode_of_procurement, p.approved_budget_abc, p.source_of_funds,
+                    p.fund_source_type, p.app_cycle, p.saro_control_number, p.bid_reference_no, p.post_to_philgeps,
+                    p.abstract_of_quotations_no, p.bac_resolution_no, p.date_received_bacsec, p.date_received_pcmd,
+                    p.signatory_box_a, p.signatory_box_c, p.status, p.remarks,
+                    p.saro_pdf, p.ppmp_pdf, p.market_scoping_pdf, p.tech_specs_pdf, p.abstract_quotations_pdf,
+                    c.noa_pdf, c.signed_contract_pdf, c.bac_resolution_pdf, c.request_order_pdf,
+                    d.iar_pdf, d.po_pdf,
+                    w.warranty_certificate_pdf
+                FROM projects p
+                LEFT JOIN contracts c ON p.project_id = c.project_id OR p.project_id = c.contract_id
+                LEFT JOIN (
+                    SELECT contract_id, iar_pdf, po_pdf, MAX(milestone_id) 
+                    FROM deliveries_and_payments 
+                    GROUP BY contract_id
+                ) d ON c.contract_id = d.contract_id
+                LEFT JOIN warranties w ON c.contract_id = w.contract_id
+            """)
+            rows = cur.fetchall()
+            select_cols = [desc[0] for desc in cur.description]
+            colnames = select_cols
+        else:
+            cur.execute(f"PRAGMA table_info({table})")
+            columns_info = cur.fetchall()
+            select_cols = [c[1] for c in columns_info if not c[1].endswith("_data")]
+            cols_str = ", ".join(f'"{c}"' for c in select_cols)
+            cur.execute(f"SELECT {cols_str} FROM {table}")
+            rows = cur.fetchall()
+            colnames = select_cols
         
         values = [colnames]
         for r in rows:
@@ -393,9 +416,38 @@ def push_sqlite_to_sheets(progress_callback=None, force_full=False):
         for table in tables:
             grid_id = sheet_id_map.get(table)
             if grid_id is not None:
-                cur.execute(f"SELECT * FROM {table} LIMIT 1")
-                colnames_all = [desc[0] for desc in cur.description]
-                num_cols = len(colnames_all)
+                if table == "projects":
+                    cur.execute("""
+                        SELECT 
+                            p.project_id, p.project_name, p.bureau_division, p.focal_person, p.focal_contact_email,
+                            p.nature_of_procurement, p.mode_of_procurement, p.approved_budget_abc, p.source_of_funds,
+                            p.fund_source_type, p.app_cycle, p.saro_control_number, p.bid_reference_no, p.post_to_philgeps,
+                            p.abstract_of_quotations_no, p.bac_resolution_no, p.date_received_bacsec, p.date_received_pcmd,
+                            p.signatory_box_a, p.signatory_box_c, p.status, p.remarks,
+                            p.saro_pdf, p.ppmp_pdf, p.market_scoping_pdf, p.tech_specs_pdf, p.abstract_quotations_pdf,
+                            c.noa_pdf, c.signed_contract_pdf, c.bac_resolution_pdf, c.request_order_pdf,
+                            d.iar_pdf, d.po_pdf,
+                            w.warranty_certificate_pdf
+                        FROM projects p
+                        LEFT JOIN contracts c ON p.project_id = c.project_id OR p.project_id = c.contract_id
+                        LEFT JOIN (
+                            SELECT contract_id, iar_pdf, po_pdf, MAX(milestone_id) 
+                            FROM deliveries_and_payments 
+                            GROUP BY contract_id
+                        ) d ON c.contract_id = d.contract_id
+                        LEFT JOIN warranties w ON c.contract_id = w.contract_id
+                    """)
+                    rows_data = cur.fetchall()
+                    select_cols = [desc[0] for desc in cur.description]
+                else:
+                    cur.execute(f"PRAGMA table_info({table})")
+                    columns_info = cur.fetchall()
+                    select_cols = [c[1] for c in columns_info if not c[1].endswith("_data")]
+                    cols_str = ", ".join(f'"{c}"' for c in select_cols)
+                    cur.execute(f"SELECT {cols_str} FROM {table}")
+                    rows_data = cur.fetchall()
+                    
+                num_cols = len(select_cols)
                 
                 format_requests = [
                     # Header format (Dark blue background, white bold text, centered)
