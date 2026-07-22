@@ -39,11 +39,11 @@ class PremiumSplashScreen(QSplashScreen):
         layout.setSpacing(15)
         
         # App Title
-        self.title_lbl = QLabel("NEXUS PROCUREMENT")
+        self.title_lbl = QLabel("PROCUREMENT MANAGEMENT SYSTEM")
         self.title_lbl.setStyleSheet("""
             QLabel {
                 color: #FFDE15;
-                font-size: 26px;
+                font-size: 22px;
                 font-weight: bold;
                 font-family: 'Montserrat', 'Arial';
                 background: transparent;
@@ -54,7 +54,7 @@ class PremiumSplashScreen(QSplashScreen):
         layout.addWidget(self.title_lbl)
         
         # Subtitle
-        self.subtitle_lbl = QLabel("Payment & Contract Tracking System")
+        self.subtitle_lbl = QLabel("PMS — Payment & Contract Tracking")
         self.subtitle_lbl.setStyleSheet("""
             QLabel {
                 color: #94a3b8;
@@ -98,16 +98,17 @@ class PremiumSplashScreen(QSplashScreen):
         """)
         layout.addWidget(self.progress_bar)
         
-    def set_progress(self, val, status_text):
+    def set_progress(self, val, status_text=""):
         self.progress_bar.setValue(val)
-        self.status_lbl.setText(status_text)
+        if status_text:
+            self.status_lbl.setText(status_text)
         QApplication.processEvents()
 
 class Dashboard(QMainWindow):
     """The main application layout containing the sidebar and stacked views."""
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Procurement & Payment Tracking Dashboard")
+        self.setWindowTitle("Procurement Management System (PMS)")
         self.resize(1100, 700)
         self.setStyleSheet("background-color: #1e1e24; color: #ffffff;")
         self.current_cards_page = 1
@@ -131,7 +132,7 @@ class Dashboard(QMainWindow):
         header_h_layout = QHBoxLayout()
         header_h_layout.setContentsMargins(5, 0, 5, 0)
         
-        self.app_title = QLabel("PROCUREMENT TRACKER")
+        self.app_title = QLabel("PMS SYSTEM")
         self.app_title.setStyleSheet("""
             font-size: 18px; 
             font-weight: bold; 

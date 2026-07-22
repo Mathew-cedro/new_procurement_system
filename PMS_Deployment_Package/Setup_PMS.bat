@@ -1,17 +1,17 @@
 @echo off
-title NexusPTP - Setup & Desktop Shortcut Creator
+title Procurement Management System (PMS) - Setup & Desktop Shortcut Creator
 echo ===================================================
-echo   NexusPTP - Payment & Contract Tracking System
+echo   Procurement Management System (PMS)
 echo   Deployment Setup Script for DICT Computers
 echo ===================================================
 echo.
 
 set TARGET_DIR=%CD%
-set EXE_PATH=%TARGET_DIR%\NexusPTP.exe
-set SHORTCUT_PATH=%USERPROFILE%\Desktop\NexusPTP.lnk
+set EXE_PATH=%TARGET_DIR%\PMS.exe
+set SHORTCUT_PATH=%USERPROFILE%\Desktop\PMS.lnk
 
 if not exist "%EXE_PATH%" (
-    echo [ERROR] NexusPTP.exe was not found in %TARGET_DIR%!
+    echo [ERROR] PMS.exe was not found in %TARGET_DIR%!
     echo Please make sure you extract all files before running this script.
     pause
     exit /b 1
@@ -23,10 +23,10 @@ powershell -Command "$s=(New-Object -COM WScript.Shell).CreateShortcut('%SHORTCU
 if exist "%SHORTCUT_PATH%" (
     echo [SUCCESS] Desktop Shortcut created successfully on your Desktop!
 ) else (
-    echo [WARNING] Could not create Desktop Shortcut automatically. You can launch NexusPTP.exe directly from this folder.
+    echo [WARNING] Could not create Desktop Shortcut automatically. You can launch PMS.exe directly from this folder.
 )
 
 echo.
-echo Setup completed! You may now double-click NexusPTP on your Desktop to run the app.
+echo Setup completed! You may now double-click PMS on your Desktop to run the app.
 echo.
 pause
