@@ -559,6 +559,25 @@ class Dashboard(QMainWindow):
         self.cards_division_filter.currentIndexChanged.connect(self.apply_cards_filters_and_refresh)
         cards_header.addWidget(self.cards_division_filter)
         
+        self.cards_mode_filter = QComboBox()
+        self.cards_mode_filter.addItems([
+            "All Procurement Modes",
+            "Public Bidding",
+            "Small Value Procurement (SVP)",
+            "Direct Contracting",
+            "Negotiated Procurement",
+            "Repeat Order",
+            "Limited Source Bidding"
+        ])
+        self.cards_mode_filter.setStyleSheet("""
+            QComboBox {
+                background-color: #2b2b36; color: #ffffff; border: 1px solid #3a3a4a;
+                border-radius: 4px; padding: 8px; margin-right: 15px; min-width: 140px; font-size: 13px;
+            }
+        """)
+        self.cards_mode_filter.currentIndexChanged.connect(self.apply_cards_filters_and_refresh)
+        cards_header.addWidget(self.cards_mode_filter)
+
         self.cards_date_filter = QComboBox()
         self.cards_date_filter.addItems([
             "All Dates", 
@@ -587,7 +606,7 @@ class Dashboard(QMainWindow):
                 border-radius: 5px;
                 padding: 8px;
                 font-size: 13px;
-                max-width: 300px;
+                max-width: 260px;
             }
             QLineEdit:focus {
                 border: 1px solid #00ffcc;
@@ -595,6 +614,19 @@ class Dashboard(QMainWindow):
         """)
         self.search_input.textChanged.connect(self.refresh_cards_grid)
         cards_header.addWidget(self.search_input)
+
+        self.reset_filters_btn = QPushButton("🔄 Reset")
+        self.reset_filters_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2b2b36; color: #a0a0b0;
+                font-weight: bold; border-radius: 5px; padding: 8px 12px; border: 1px solid #3a3a4a;
+                margin-left: 10px;
+            }
+            QPushButton:hover { background-color: #3b3b4a; color: #ffffff; }
+        """)
+        self.reset_filters_btn.clicked.connect(self.reset_all_filters)
+        cards_header.addWidget(self.reset_filters_btn)
+
         cards_page_layout.addLayout(cards_header)
         
 
@@ -1726,12 +1758,25 @@ class Dashboard(QMainWindow):
         self.current_cards_page = 1
         self.refresh_filtered_views()
 
+    def reset_all_filters(self):
+        if hasattr(self, "cards_status_filter"): self.cards_status_filter.setCurrentIndex(0)
+        if hasattr(self, "cards_division_filter"): self.cards_division_filter.setCurrentIndex(0)
+        if hasattr(self, "cards_date_filter"): self.cards_date_filter.setCurrentIndex(0)
+        if hasattr(self, "cards_mode_filter"): self.cards_mode_filter.setCurrentIndex(0)
+        if hasattr(self, "overview_status_filter"): self.overview_status_filter.setCurrentIndex(0)
+        if hasattr(self, "overview_division_filter"): self.overview_division_filter.setCurrentIndex(0)
+        if hasattr(self, "overview_date_filter"): self.overview_date_filter.setCurrentIndex(0)
+        if hasattr(self, "search_input"): self.search_input.clear()
+        self.current_cards_page = 1
+        self.refresh_filtered_views()
+
     def refresh_filtered_views(self):
         # Read filter options
         status_text = self.overview_status_filter.currentText() if hasattr(self, "overview_status_filter") else "All Statuses"
         division_text = self.overview_division_filter.currentText() if hasattr(self, "overview_division_filter") else "All Divisions"
         date_filter = self.overview_date_filter.currentText() if hasattr(self, "overview_date_filter") else "All Dates"
-        search_text = self.search_input.text() if hasattr(self, "search_input") else ""
+        mode_text = self.cards_mode_filter.currentText() if hasattr(self, "cards_mode_filter") else "All Procurement Modes"
+        search_text = self.search_input.text().strip().lower() if hasattr(self, "search_input") else ""
         
         current_date = QDate.currentDate()
         
@@ -1741,9 +1786,14 @@ class Dashboard(QMainWindow):
             print(f"Error fetching projects: {e}")
             return
             
-        # 1. Filter status, division and relative date presets
+        # 1. Filter status, division, mode and relative date presets
         filtered = []
         for p in all_projects:
+            # Mode filter
+            if mode_text != "All Procurement Modes":
+                p_mode = p.get("mode_of_procurement", "")
+                if mode_text.lower() not in p_mode.lower():
+                    continue
             # Status normalization for compatibility
             p_status = p.get("status", "")
             if p_status in ["Initiated", "Bidding"]:

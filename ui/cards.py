@@ -8,6 +8,48 @@ from PySide6.QtGui import QCursor, QDesktopServices
 import os
 import database as database_config
 
+class ProcurementStepperWidget(QWidget):
+    def __init__(self, project_data, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 4, 0, 0)
+        layout.setSpacing(4)
+        
+        status_text = (project_data.get("status") or "").lower()
+        has_contract = bool(project_data.get("po_jo_contract_no") or (project_data.get("contract_amount", 0.0) or 0.0) > 0)
+        has_supplier = bool(project_data.get("supplier_name"))
+        has_abstract = bool(project_data.get("abstract_of_quotations_no"))
+        has_warranty = "warranty" in status_text
+        has_delivery = "deliver" in status_text or "payment" in status_text
+        
+        stages = [
+            ("P0: PR/ABC", "🟢 Completed"),
+            ("P1: Bidding", "🟢 Completed" if (has_abstract or has_contract or has_supplier) else ("🟡 Active" if "bid" in status_text or "plan" in status_text else "⚪ Pending")),
+            ("P2: Contract", "🟢 Completed" if (has_contract and has_supplier) else ("🟡 Active" if ("contract" in status_text or "award" in status_text) else "⚪ Pending")),
+            ("P3: Delivery", "🟢 Completed" if (has_delivery and has_warranty) else ("🟡 Active" if has_delivery else "⚪ Pending")),
+            ("P4: Warranty", "🟢 Active" if has_warranty else "⚪ Pending")
+        ]
+        
+        for name, state in stages:
+            pill = QLabel(name)
+            if "🟢" in state:
+                pill.setStyleSheet("background-color: #1a3a2a; color: #2ecc71; border: 1px solid #2ecc71; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
+                pill.setToolTip(f"{name}: Completed")
+            elif "🟡" in state:
+                pill.setStyleSheet("background-color: #3a2a1a; color: #ffaa00; border: 1px solid #ffaa00; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
+                pill.setToolTip(f"{name}: In Progress")
+            else:
+                pill.setStyleSheet("background-color: #1e1e28; color: #64748b; border: 1px solid #3a3a4a; border-radius: 3px; font-size: 10px; padding: 2px 5px;")
+                pill.setToolTip(f"{name}: Pending")
+                
+            layout.addWidget(pill)
+            
+            if name != "P4: Warranty":
+                arrow = QLabel("➔")
+                arrow.setStyleSheet("color: #475569; font-size: 9px; border: none; background: transparent;")
+                layout.addWidget(arrow)
+        layout.addStretch()
+
 class ProjectCardWidget(QFrame):
     clicked = Signal(str)  # Emits project_id when clicked
     
@@ -20,8 +62,8 @@ class ProjectCardWidget(QFrame):
         self.setCursor(QCursor(Qt.PointingHandCursor))
         self.setMinimumWidth(650)
         self.setMaximumWidth(1600)
-        self.setMinimumHeight(140)
-        self.setMaximumHeight(180)
+        self.setMinimumHeight(155)
+        self.setMaximumHeight(195)
         
         # Style sheet with hover effects
         import database as database_config
@@ -114,6 +156,10 @@ class ProjectCardWidget(QFrame):
         meta_layout.addWidget(focal_label)
         meta_layout.addStretch()
         left_layout.addLayout(meta_layout)
+        
+        # Procurement Stage Stepper
+        stepper = ProcurementStepperWidget(project_data)
+        left_layout.addWidget(stepper)
         
         remarks = project_data.get("remarks")
         if remarks and remarks.strip():

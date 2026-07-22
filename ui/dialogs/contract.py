@@ -102,12 +102,29 @@ class AddContractDialog(BaseFormDialog):
         self.po_jo_no.textChanged.connect(self.validate_inputs)
         con_layout.addRow("PO/JO / Contract No *:", self.po_jo_no)
         
+        self.abc_amount = 0.0
+        try:
+            conn = database_config.get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT approved_budget_abc FROM projects WHERE project_id = ?", (self.project_id,))
+            r = cur.fetchone()
+            if r and r["approved_budget_abc"]:
+                self.abc_amount = r["approved_budget_abc"]
+            conn.close()
+        except Exception:
+            pass
+
         self.con_amount = QDoubleSpinBox()
         self.con_amount.setRange(0, 999999999.99)
         self.con_amount.setSingleStep(10000.0)
         self.con_amount.setPrefix("₱")
         self.con_amount.valueChanged.connect(self.validate_inputs)
+        self.con_amount.valueChanged.connect(self.update_budget_feedback)
         con_layout.addRow("Contract Award Amount *:", self.con_amount)
+        
+        self.budget_feedback_lbl = QLabel()
+        con_layout.addRow("", self.budget_feedback_lbl)
+        self.update_budget_feedback()
         
         self.f_capacity = QDoubleSpinBox()
         self.f_capacity.setRange(0, 999999999.99)
@@ -285,6 +302,21 @@ class AddContractDialog(BaseFormDialog):
     def browse_contract(self): pass
     def browse_reso(self): pass
     def browse_rq(self): pass
+
+    def update_budget_feedback(self):
+        val = self.con_amount.value()
+        if self.abc_amount <= 0:
+            self.budget_feedback_lbl.setText("")
+            return
+        if val <= self.abc_amount:
+            savings = self.abc_amount - val
+            pct = (savings / self.abc_amount) * 100 if self.abc_amount > 0 else 0.0
+            self.budget_feedback_lbl.setText(f"🟢 Savings: ₱{savings:,.2f} ({pct:.1f}% under ABC ₱{self.abc_amount:,.2f})")
+            self.budget_feedback_lbl.setStyleSheet("color: #2ecc71; font-size: 11px; font-weight: bold;")
+        else:
+            overrun = val - self.abc_amount
+            self.budget_feedback_lbl.setText(f"⚠️ BUDGET OVERRUN: Exceeds ABC (₱{self.abc_amount:,.2f}) by ₱{overrun:,.2f}!")
+            self.budget_feedback_lbl.setStyleSheet("color: #ff4444; font-size: 11px; font-weight: bold;")
 
     def submit_data(self):
         if not self.validate_inputs():
