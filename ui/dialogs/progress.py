@@ -44,7 +44,7 @@ class SyncProgressDialog(QDialog):
                 color: {text_col};
             }}
             QProgressBar::chunk {{
-                background-color: #0284c7;
+                background-color: #002C76;
                 border-radius: 5px;
             }}
         """)

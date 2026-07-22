@@ -42,7 +42,7 @@ class PremiumSplashScreen(QSplashScreen):
         self.title_lbl = QLabel("NEXUS PROCUREMENT")
         self.title_lbl.setStyleSheet("""
             QLabel {
-                color: #00ffcc;
+                color: #FFDE15;
                 font-size: 26px;
                 font-weight: bold;
                 font-family: 'Montserrat', 'Arial';
@@ -57,7 +57,7 @@ class PremiumSplashScreen(QSplashScreen):
         self.subtitle_lbl = QLabel("Payment & Contract Tracking System")
         self.subtitle_lbl.setStyleSheet("""
             QLabel {
-                color: #a0a0b0;
+                color: #94a3b8;
                 font-size: 13px;
                 background: transparent;
                 border: none;
@@ -72,7 +72,7 @@ class PremiumSplashScreen(QSplashScreen):
         self.status_lbl = QLabel("Initializing system components...")
         self.status_lbl.setStyleSheet("""
             QLabel {
-                color: #8c8c9a;
+                color: #64748b;
                 font-size: 11px;
                 background: transparent;
                 border: none;
@@ -87,12 +87,12 @@ class PremiumSplashScreen(QSplashScreen):
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setStyleSheet("""
             QProgressBar {
-                background-color: #1e1e24;
+                background-color: #182238;
                 border: none;
                 border-radius: 3px;
             }
             QProgressBar::chunk {
-                background-color: #00ffcc;
+                background-color: #FFDE15;
                 border-radius: 3px;
             }
         """)
@@ -1097,35 +1097,35 @@ class Dashboard(QMainWindow):
     def update_theme_styles(self):
         theme = getattr(self, "current_theme", "dark")
         
-        # Define palette colors based on theme
+        # Define palette colors based on official brand scheme
         if theme == "light":
-            c_bg_app = "#f1f5f9"
-            c_bg_sidebar = "#e2e8f0"
+            c_bg_app = "#F4F6F9"
+            c_bg_sidebar = "#ffffff"
             c_border_sidebar = "#cbd5e1"
             c_bg_card = "#ffffff"
             c_border_card = "#cbd5e1"
-            c_text_main = "#0f172a"
-            c_text_muted = "#64748b"
-            c_accent = "#0284c7"
-            c_accent_hover = "#0369a1"
-            c_table_header_bg = "#f1f5f9"
-            c_table_header_text = "#0f172a"
-            c_table_item_selected_bg = "#0284c7"
+            c_text_main = "#10182B"
+            c_text_muted = "#475569"
+            c_accent = "#002C76"
+            c_accent_hover = "#003896"
+            c_table_header_bg = "#002C76"
+            c_table_header_text = "#ffffff"
+            c_table_item_selected_bg = "#002C76"
             c_table_item_selected_text = "#ffffff"
         else:
-            c_bg_app = "#1e1e24"
-            c_bg_sidebar = "#13131a"
-            c_border_sidebar = "#2b2b36"
-            c_bg_card = "#2b2b36"
-            c_border_card = "#3a3a4a"
+            c_bg_app = "#10182B"
+            c_bg_sidebar = "#0b1120"
+            c_border_sidebar = "#1a243a"
+            c_bg_card = "#182238"
+            c_border_card = "#253454"
             c_text_main = "#ffffff"
-            c_text_muted = "#a0a0b0"
-            c_accent = "#00ffcc"
-            c_accent_hover = "#00ccaa"
-            c_table_header_bg = "#13131a"
-            c_table_header_text = "#00ffcc"
-            c_table_item_selected_bg = "#00ffcc"
-            c_table_item_selected_text = "#13131a"
+            c_text_muted = "#94a3b8"
+            c_accent = "#FFDE15"
+            c_accent_hover = "#ffe64d"
+            c_table_header_bg = "#0b1120"
+            c_table_header_text = "#FFDE15"
+            c_table_item_selected_bg = "#002C76"
+            c_table_item_selected_text = "#FFDE15"
 
         # Apply main window and sidebar styling
         self.setStyleSheet(f"background-color: {c_bg_app}; color: {c_text_main};")

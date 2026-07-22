@@ -11,26 +11,22 @@ import database as database_config
 # Styling helper for form inputs
 INPUT_STYLE = """
     QLineEdit, QComboBox, QDateEdit, QSpinBox, QDoubleSpinBox {
-        background-color: #2b2b36;
+        background-color: #182238;
         color: #ffffff;
-        border: 1px solid #3a3a4a;
+        border: 1px solid #253454;
         border-radius: 4px;
         padding: 6px;
         font-size: 12px;
     }
     QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-        border: 1px solid #00ffcc;
+        border: 1px solid #FFDE15;
     }
     QLabel {
         color: #ffffff;
         font-size: 12px;
         font-weight: bold;
     }
-    QCheckBox {
-        color: #ffffff;
-        font-size: 12px;
-    }
-    QRadioButton {
+    QCheckBox, QRadioButton {
         color: #ffffff;
         font-size: 12px;
     }
@@ -38,29 +34,30 @@ INPUT_STYLE = """
 
 BUTTON_SUBMIT_STYLE = """
     QPushButton {
-        background-color: #00ffcc;
-        color: #13131a;
+        background-color: #002C76;
+        color: #ffffff;
         font-weight: bold;
         border-radius: 4px;
         padding: 8px 16px;
         font-size: 12px;
+        border: 1px solid #1a428a;
     }
     QPushButton:hover {
-        background-color: #00ccaa;
+        background-color: #003896;
     }
 """
 
 BUTTON_CANCEL_STYLE = """
     QPushButton {
         background-color: transparent;
-        color: #ff6666;
-        border: 1px solid #ff6666;
+        color: #C9282D;
+        border: 1px solid #C9282D;
         border-radius: 4px;
         padding: 8px 16px;
         font-size: 12px;
     }
     QPushButton:hover {
-        background-color: #3a1a1a;
+        background-color: #3b1416;
     }
 """
 
@@ -71,19 +68,19 @@ class BaseFormDialog(QDialog):
         theme = database_config.get_theme_setting()
         if theme == "light":
             self.setStyleSheet("""
-                QDialog { background-color: #f1f5f9; color: #0f172a; }
+                QDialog { background-color: #F4F6F9; color: #10182B; }
                 QLineEdit, QComboBox, QDateEdit, QSpinBox, QDoubleSpinBox {
-                    background-color: #ffffff; color: #0f172a; border: 1px solid #cbd5e1;
+                    background-color: #ffffff; color: #10182B; border: 1px solid #cbd5e1;
                     border-radius: 4px; padding: 6px; font-size: 12px;
                 }
                 QLineEdit:focus, QComboBox:focus, QDateEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus {
-                    border: 1px solid #0284c7;
+                    border: 1px solid #002C76;
                 }
-                QLabel { color: #0f172a; font-size: 12px; font-weight: bold; }
-                QCheckBox, QRadioButton { color: #0f172a; font-size: 12px; }
+                QLabel { color: #10182B; font-size: 12px; font-weight: bold; }
+                QCheckBox, QRadioButton { color: #10182B; font-size: 12px; }
             """)
         else:
-            self.setStyleSheet(f"QDialog {{ background-color: #1e1e24; color: #ffffff; }} {INPUT_STYLE}")
+            self.setStyleSheet(f"QDialog {{ background-color: #10182B; color: #ffffff; }} {INPUT_STYLE}")
         
     def set_field_validation(self, widget, is_valid):
         cls_name = widget.metaObject().className()

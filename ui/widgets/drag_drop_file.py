@@ -38,9 +38,9 @@ class DragDropFileWidget(QFrame):
         import database as database_config
         theme = database_config.get_theme_setting()
         
-        bg_col = "#0284c7" if is_dragged else ("#ffffff" if theme == "light" else "#1e1e24")
-        border_col = "#0284c7" if is_dragged else ("#cbd5e1" if theme == "light" else "#3a3a4a")
-        text_col = "#ffffff" if is_dragged else ("#0f172a" if theme == "light" else "#a0a0b0")
+        bg_col = "#002C76" if is_dragged else ("#F4F6F9" if theme == "light" else "#182238")
+        border_col = "#FFDE15" if is_dragged else ("#cbd5e1" if theme == "light" else "#253454")
+        text_col = "#ffffff" if is_dragged else ("#10182B" if theme == "light" else "#94a3b8")
         
         self.setStyleSheet(f"""
             QFrame {{
@@ -55,29 +55,30 @@ class DragDropFileWidget(QFrame):
                 background: transparent;
             }}
             QPushButton {{
-                background-color: {"#0284c7" if theme == "light" else "#2b2b36"};
+                background-color: {"#002C76" if theme == "light" else "#002C76"};
                 color: #ffffff;
-                border: 1px solid {"#0284c7" if theme == "light" else "#3a3a4a"};
+                border: 1px solid #1a428a;
                 border-radius: 4px;
                 padding: 4px;
                 font-size: 11px;
+                font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: {"#0369a1" if theme == "light" else "#323242"};
+                background-color: #003896;
             }}
         """)
 
     def set_file_path(self, path):
-        self.file_path = path or ""
-        if self.file_path:
-            filename = os.path.basename(self.file_path)
+        self.file_path = path
+        if path:
+            filename = os.path.basename(path)
             self.lbl_info.setText(f"📄 {filename}")
-            self.lbl_info.setToolTip(self.file_path)
+            self.lbl_info.setStyleSheet("color: #1F9D55; font-weight: bold; font-size: 11px;")
             self.btn_clear.setVisible(True)
         else:
             self.lbl_info.setText(self.placeholder_text)
-            self.lbl_info.setToolTip("")
             self.btn_clear.setVisible(False)
+            self.update_style(is_dragged=False)
         self.file_selected.emit(self.file_path)
 
     def get_file_path(self):

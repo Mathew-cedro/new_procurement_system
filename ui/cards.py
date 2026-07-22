@@ -33,13 +33,13 @@ class ProcurementStepperWidget(QWidget):
         for name, state in stages:
             pill = QLabel(name)
             if "🟢" in state:
-                pill.setStyleSheet("background-color: #1a3a2a; color: #2ecc71; border: 1px solid #2ecc71; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
+                pill.setStyleSheet("background-color: #123d24; color: #1F9D55; border: 1px solid #1F9D55; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
                 pill.setToolTip(f"{name}: Completed")
             elif "🟡" in state:
-                pill.setStyleSheet("background-color: #3a2a1a; color: #ffaa00; border: 1px solid #ffaa00; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
+                pill.setStyleSheet("background-color: #3b350e; color: #FFDE15; border: 1px solid #FFDE15; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
                 pill.setToolTip(f"{name}: In Progress")
             else:
-                pill.setStyleSheet("background-color: #1e1e28; color: #64748b; border: 1px solid #3a3a4a; border-radius: 3px; font-size: 10px; padding: 2px 5px;")
+                pill.setStyleSheet("background-color: #1a2333; color: #64748b; border: 1px solid #253454; border-radius: 3px; font-size: 10px; padding: 2px 5px;")
                 pill.setToolTip(f"{name}: Pending")
                 
             layout.addWidget(pill)
@@ -69,19 +69,19 @@ class ProjectCardWidget(QFrame):
         import database as database_config
         theme = database_config.get_theme_setting()
         if theme == "light":
-            c_bg_card = "#ffffff"
+            c_bg_card = "#F4F6F9"
             c_border_card = "#cbd5e1"
-            c_bg_hover = "#f8fafc"
-            c_accent = "#0284c7"
-            c_text_main = "#0f172a"
-            c_text_muted = "#64748b"
+            c_bg_hover = "#ffffff"
+            c_accent = "#002C76"
+            c_text_main = "#10182B"
+            c_text_muted = "#475569"
         else:
-            c_bg_card = "#2b2b36"
-            c_border_card = "#3a3a4a"
-            c_bg_hover = "#323242"
-            c_accent = "#00ffcc"
+            c_bg_card = "#182238"
+            c_border_card = "#253454"
+            c_bg_hover = "#1e2c47"
+            c_accent = "#FFDE15"
             c_text_main = "#ffffff"
-            c_text_muted = "#a0a0b0"
+            c_text_muted = "#94a3b8"
 
         self.setObjectName("ProjectCard")
         self.setStyleSheet(f"""
