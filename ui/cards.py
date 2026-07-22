@@ -30,23 +30,35 @@ class ProcurementStepperWidget(QWidget):
             ("P4: Warranty", "🟢 Active" if has_warranty else "⚪ Pending")
         ]
         
+        import database as database_config
+        theme = database_config.get_theme_setting()
+
         for name, state in stages:
             pill = QLabel(name)
             if "🟢" in state:
-                pill.setStyleSheet("background-color: #123d24; color: #1F9D55; border: 1px solid #1F9D55; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
+                if theme == "light":
+                    pill.setStyleSheet("background-color: #e6f4ea; color: #15803d; border: 1px solid #15803d; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
+                else:
+                    pill.setStyleSheet("background-color: #123d24; color: #1F9D55; border: 1px solid #1F9D55; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
                 pill.setToolTip(f"{name}: Completed")
             elif "🟡" in state:
-                pill.setStyleSheet("background-color: #3b350e; color: #FFDE15; border: 1px solid #FFDE15; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
+                if theme == "light":
+                    pill.setStyleSheet("background-color: #fef3c7; color: #b45309; border: 1px solid #b45309; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
+                else:
+                    pill.setStyleSheet("background-color: #3b350e; color: #FFDE15; border: 1px solid #FFDE15; border-radius: 3px; font-size: 10px; font-weight: bold; padding: 2px 5px;")
                 pill.setToolTip(f"{name}: In Progress")
             else:
-                pill.setStyleSheet("background-color: #1a2333; color: #64748b; border: 1px solid #253454; border-radius: 3px; font-size: 10px; padding: 2px 5px;")
+                if theme == "light":
+                    pill.setStyleSheet("background-color: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; border-radius: 3px; font-size: 10px; padding: 2px 5px;")
+                else:
+                    pill.setStyleSheet("background-color: #1a2333; color: #64748b; border: 1px solid #253454; border-radius: 3px; font-size: 10px; padding: 2px 5px;")
                 pill.setToolTip(f"{name}: Pending")
                 
             layout.addWidget(pill)
             
             if name != "P4: Warranty":
                 arrow = QLabel("➔")
-                arrow.setStyleSheet("color: #475569; font-size: 9px; border: none; background: transparent;")
+                arrow.setStyleSheet("color: #475569; font-size: 9px; border: none; background: transparent;" if theme == "light" else "color: #94a3b8; font-size: 9px; border: none; background: transparent;")
                 layout.addWidget(arrow)
         layout.addStretch()
 
@@ -289,20 +301,24 @@ class ProjectCardWidget(QFrame):
         abc_amount = project_data.get("abc_amount", 0.0) or 0.0
         contract_amount = project_data.get("contract_amount", 0.0) or 0.0
         
+        abc_col = "#526075" if theme == "light" else "#94a3b8"
+        ctr_col = "#002C76" if theme == "light" else "#FFDE15"
+        savings_col = "#15803d" if theme == "light" else "#1F9D55"
+
         abc_val = QLabel(f"ABC: ₱{abc_amount:,.2f}")
-        abc_val.setStyleSheet("color: #a0a0b0; font-size: 11px; text-align: right; border: none; background: transparent;")
+        abc_val.setStyleSheet(f"color: {abc_col}; font-size: 11px; text-align: right; border: none; background: transparent;")
         abc_val.setAlignment(Qt.AlignRight)
         amounts_layout.addWidget(abc_val)
         
         if contract_amount > 0:
             ctr_val = QLabel(f"Contract Price: ₱{contract_amount:,.2f}")
-            ctr_val.setStyleSheet("color: #00ffcc; font-size: 11px; font-weight: bold; text-align: right; border: none; background: transparent;")
+            ctr_val.setStyleSheet(f"color: {ctr_col}; font-size: 11px; font-weight: bold; text-align: right; border: none; background: transparent;")
             ctr_val.setAlignment(Qt.AlignRight)
             amounts_layout.addWidget(ctr_val)
             
             savings_amount = max(0.0, abc_amount - contract_amount)
             savings_val = QLabel(f"Savings: ₱{savings_amount:,.2f}")
-            savings_val.setStyleSheet("color: #2befa3; font-size: 11px; font-weight: bold; text-align: right; border: none; background: transparent;")
+            savings_val.setStyleSheet(f"color: {savings_col}; font-size: 11px; font-weight: bold; text-align: right; border: none; background: transparent;")
             savings_val.setAlignment(Qt.AlignRight)
             amounts_layout.addWidget(savings_val)
             

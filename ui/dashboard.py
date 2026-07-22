@@ -1097,7 +1097,6 @@ class Dashboard(QMainWindow):
         # Trigger redraw of chart
         if hasattr(self, "chart"):
             self.chart.update()
-        self.refresh_all_data()
 
     def update_theme_styles(self):
         theme = getattr(self, "current_theme", "dark")
@@ -1106,17 +1105,38 @@ class Dashboard(QMainWindow):
         if theme == "light":
             c_bg_app = "#F4F6F9"
             c_bg_sidebar = "#ffffff"
-            c_border_sidebar = "#cbd5e1"
+            c_border_sidebar = "#dbe2ea"
             c_bg_card = "#ffffff"
-            c_border_card = "#cbd5e1"
+            c_border_card = "#dbe2ea"
             c_text_main = "#10182B"
-            c_text_muted = "#475569"
+            c_text_muted = "#526075"
             c_accent = "#002C76"
-            c_accent_hover = "#003896"
+            c_accent_hover = "#001d52"
             c_table_header_bg = "#002C76"
             c_table_header_text = "#ffffff"
             c_table_item_selected_bg = "#002C76"
             c_table_item_selected_text = "#ffffff"
+            
+            # Dedicated High-Contrast Light Mode Values
+            c_budget_val = "#b45309"    # Deep Amber/Bronze for ABC Budget (ultra sharp on white!)
+            c_contract_val = "#002C76"  # Deep Royal Blue for Contract Value
+            c_disbursed_val = "#15803d" # Deep Forest Green for Disbursed Value
+            
+            c_create_btn_bg = "#FFDE15"
+            c_create_btn_text = "#10182B"
+            c_create_btn_hover = "#e6c812"
+            
+            c_sync_btn_bg = "#002C76"
+            c_sync_btn_text = "#ffffff"
+            c_sync_btn_hover = "#003896"
+            
+            c_open_btn_bg = "#1F9D55"
+            c_open_btn_text = "#ffffff"
+            c_open_btn_hover = "#167a42"
+            
+            c_reset_btn_bg = "#e2e8f0"
+            c_reset_btn_text = "#10182B"
+            c_reset_btn_hover = "#cbd5e1"
         else:
             c_bg_app = "#10182B"
             c_bg_sidebar = "#0b1120"
@@ -1131,6 +1151,26 @@ class Dashboard(QMainWindow):
             c_table_header_text = "#FFDE15"
             c_table_item_selected_bg = "#002C76"
             c_table_item_selected_text = "#FFDE15"
+            
+            c_budget_val = "#FFDE15"
+            c_contract_val = "#38bdf8"
+            c_disbursed_val = "#1F9D55"
+            
+            c_create_btn_bg = "#FFDE15"
+            c_create_btn_text = "#10182B"
+            c_create_btn_hover = "#e6c812"
+            
+            c_sync_btn_bg = "#002C76"
+            c_sync_btn_text = "#ffffff"
+            c_sync_btn_hover = "#003896"
+            
+            c_open_btn_bg = "#1F9D55"
+            c_open_btn_text = "#ffffff"
+            c_open_btn_hover = "#167a42"
+            
+            c_reset_btn_bg = "#253454"
+            c_reset_btn_text = "#94a3b8"
+            c_reset_btn_hover = "#3b4d75"
 
         # Apply main window and sidebar styling
         self.setStyleSheet(f"background-color: {c_bg_app}; color: {c_text_main};")
@@ -1176,12 +1216,12 @@ class Dashboard(QMainWindow):
 
         # Style Exit Button dynamically based on theme and expanded/collapsed state
         if theme == "light":
-            c_exit_text = "#dc2626"
+            c_exit_text = "#C9282D"
             c_exit_hover_bg = "#fee2e2"
             c_exit_hover_text = "#991b1b"
         else:
-            c_exit_text = "#ff6666"
-            c_exit_hover_bg = "#4d2222"
+            c_exit_text = "#C9282D"
+            c_exit_hover_bg = "#3b1416"
             c_exit_hover_text = "#ff8888"
             
         exit_label = "🚪 Exit" if not is_collapsed else "🚪"
@@ -1220,12 +1260,12 @@ class Dashboard(QMainWindow):
                 }}
             """)
 
-        # Overview titles & panels styling
+        # Overview panels & headers styling
         self.header_title.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {c_text_main};")
         self.timeline_panel.setStyleSheet(f"#TimelinePanel {{ background-color: {c_bg_card}; border-radius: 8px; border: 1px solid {c_border_card}; }}")
-        self.timeline_title.setStyleSheet(f"color: {c_accent}; font-size: 14px; font-weight: bold; margin-bottom: 8px; border: none; background: transparent;")
-        
         self.stats_panel.setStyleSheet(f"#StatsPanel {{ background-color: {c_bg_card}; border-radius: 8px; border: 1px solid {c_border_card}; }}")
+        
+        self.timeline_title.setStyleSheet(f"color: {c_accent}; font-size: 14px; font-weight: bold; margin-bottom: 8px; border: none; background: transparent;")
         self.stats_title.setStyleSheet(f"color: {c_accent}; font-size: 14px; font-weight: bold; border: none; background: transparent;")
         self.savings_lbl.setStyleSheet(f"color: {c_text_main}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
         self.balance_lbl.setStyleSheet(f"color: {c_text_main}; font-size: 12px; font-weight: bold; border: none; background: transparent;")
@@ -1236,34 +1276,34 @@ class Dashboard(QMainWindow):
         # Action Buttons styling
         self.create_project_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c_accent}; color: #13131a;
+                background-color: {c_create_btn_bg}; color: {c_create_btn_text};
                 font-weight: bold; border-radius: 5px; padding: 8px 15px; border: none;
             }}
-            QPushButton:hover {{ background-color: {c_accent_hover}; }}
+            QPushButton:hover {{ background-color: {c_create_btn_hover}; }}
         """)
         self.export_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c_bg_sidebar}; color: {c_text_main};
-                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                background-color: {c_sync_btn_bg}; color: {c_sync_btn_text};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid #1a428a;
                 margin-left: 10px;
             }}
-            QPushButton:hover {{ background-color: {c_bg_card}; }}
+            QPushButton:hover {{ background-color: {c_sync_btn_hover}; }}
         """)
         self.refresh_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c_bg_sidebar}; color: {c_text_main};
+                background-color: {c_bg_card}; color: {c_text_main};
                 font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
                 margin-left: 10px;
             }}
-            QPushButton:hover {{ background-color: {c_bg_card}; }}
+            QPushButton:hover {{ background-color: {c_bg_sidebar}; }}
         """)
         self.open_sheets_header_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c_bg_sidebar}; color: {c_text_main};
-                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                background-color: {c_open_btn_bg}; color: {c_open_btn_text};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: none;
                 margin-left: 10px;
             }}
-            QPushButton:hover {{ background-color: {c_bg_card}; }}
+            QPushButton:hover {{ background-color: {c_open_btn_hover}; }}
         """)
         
         # Overview Comboboxes
@@ -1314,43 +1354,35 @@ class Dashboard(QMainWindow):
         self.suppliers_table.setStyleSheet(table_style)
 
         # StatCards styling
-        for card in [self.budget_card, self.awarded_card, self.paid_card]:
-            card.setStyleSheet(f"""
-                QFrame {{
-                    background-color: {c_bg_card};
-                    border: 1px solid {c_border_card};
-                    border-radius: 8px;
-                    padding: 15px;
-                }}
-            """)
-            card.title_label.setStyleSheet(f"color: {c_text_muted}; font-size: 11px; font-weight: bold; border: none; background: transparent;")
-            card.val_label.setStyleSheet(f"color: {card.color_hex}; font-size: 22px; font-weight: bold; border: none; background: transparent;")
+        self.budget_card.update_theme(theme, c_budget_val)
+        self.awarded_card.update_theme(theme, c_contract_val)
+        self.paid_card.update_theme(theme, c_disbursed_val)
 
         # Page 2 (Project Cards Page) styling
         self.cards_title.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {c_text_main};")
         self.create_project_btn_cards.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c_accent}; color: #13131a;
+                background-color: {c_create_btn_bg}; color: {c_create_btn_text};
                 font-weight: bold; border-radius: 5px; padding: 8px 15px; border: none;
                 margin-right: 15px;
             }}
-            QPushButton:hover {{ background-color: {c_accent_hover}; }}
+            QPushButton:hover {{ background-color: {c_create_btn_hover}; }}
         """)
         self.export_btn_cards.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c_bg_sidebar}; color: {c_text_main};
-                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                background-color: {c_sync_btn_bg}; color: {c_sync_btn_text};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid #1a428a;
                 margin-right: 15px;
             }}
-            QPushButton:hover {{ background-color: {c_bg_card}; }}
+            QPushButton:hover {{ background-color: {c_sync_btn_hover}; }}
         """)
         self.open_sheets_header_btn_cards.setStyleSheet(f"""
             QPushButton {{
-                background-color: {c_bg_sidebar}; color: {c_text_main};
-                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: 1px solid {c_border_card};
+                background-color: {c_open_btn_bg}; color: {c_open_btn_text};
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: none;
                 margin-right: 15px;
             }}
-            QPushButton:hover {{ background-color: {c_bg_card}; }}
+            QPushButton:hover {{ background-color: {c_open_btn_hover}; }}
         """)
         
         cards_combo_style = f"""
@@ -1361,6 +1393,7 @@ class Dashboard(QMainWindow):
         """
         self.cards_status_filter.setStyleSheet(cards_combo_style)
         self.cards_division_filter.setStyleSheet(cards_combo_style)
+        self.cards_mode_filter.setStyleSheet(cards_combo_style)
         self.cards_date_filter.setStyleSheet(cards_combo_style)
         self.search_input.setStyleSheet(f"""
             QLineEdit {{
@@ -1370,11 +1403,19 @@ class Dashboard(QMainWindow):
                 border-radius: 5px;
                 padding: 8px;
                 font-size: 13px;
-                max-width: 300px;
+                max-width: 260px;
             }}
             QLineEdit:focus {{
                 border: 1px solid {c_accent};
             }}
+        """)
+        self.reset_filters_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {c_reset_btn_bg}; color: {c_reset_btn_text};
+                font-weight: bold; border-radius: 5px; padding: 8px 12px; border: 1px solid {c_border_card};
+                margin-left: 10px;
+            }}
+            QPushButton:hover {{ background-color: {c_reset_btn_hover}; color: {c_text_main}; }}
         """)
 
         # Page 3 (Suppliers Directory Page) styling
@@ -1603,23 +1644,27 @@ class Dashboard(QMainWindow):
             self.savings_lbl.setText(f"Savings Realized: ₱{data.get('savings_amount', 0.0):,.2f} ({data.get('savings_percent', 0.0):.2f}%)")
             self.balance_lbl.setText(f"Unpaid Contract Balance: ₱{data.get('unpaid_balance', 0.0):,.2f}")
             
+            theme = getattr(self, "current_theme", "dark")
+            lbl_color = "#10182B" if theme == "light" else "#94a3b8"
+            proj_tag_color = "#002C76" if theme == "light" else "#FFDE15"
+
             # Populate leaderboard
             leaderboard = data.get("suppliers_leaderboard", [])
             if not leaderboard:
                 empty_lbl = QLabel("No contract awards registered yet.")
-                empty_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; font-style: italic; border: none; background: transparent;")
+                empty_lbl.setStyleSheet(f"color: {lbl_color}; font-size: 11px; font-style: italic; border: none; background: transparent;")
                 self.leaderboard_layout.addWidget(empty_lbl)
             else:
                 for idx, sup in enumerate(leaderboard, 1):
                     lbl = QLabel(f"{idx}. {sup['supplier_name']} — {sup['contract_count']} contracts (₱{sup['total_value']:,.2f})")
-                    lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; border: none; background: transparent;")
+                    lbl.setStyleSheet(f"color: {lbl_color}; font-size: 11px; border: none; background: transparent;")
                     self.leaderboard_layout.addWidget(lbl)
                     
             # Populate timeline progress schedules
             events = database_config.get_upcoming_timeline_events()
             if not events:
                 empty_lbl = QLabel("No upcoming schedules or deadlines found.")
-                empty_lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; font-style: italic; border: none; background: transparent;")
+                empty_lbl.setStyleSheet(f"color: {lbl_color}; font-size: 11px; font-style: italic; border: none; background: transparent;")
                 self.timeline_list_layout.addWidget(empty_lbl)
             else:
                 # Display up to 5 timeline events
@@ -1629,21 +1674,21 @@ class Dashboard(QMainWindow):
                     days = current_date.daysTo(evt_date)
                     if days < 0:
                         days_str = f"Overdue by {abs(days)} days"
-                        badge_color = "#C9282D"
+                        badge_color = "#b91c1c" if theme == "light" else "#C9282D"
                     elif days == 0:
                         days_str = "Due today!"
-                        badge_color = "#FFDE15"
+                        badge_color = "#b45309" if theme == "light" else "#FFDE15"
                     elif days == 1:
                         days_str = "Due tomorrow"
-                        badge_color = "#FFDE15"
+                        badge_color = "#b45309" if theme == "light" else "#FFDE15"
                     else:
                         days_str = f"In {days} days"
-                        badge_color = "#1F9D55"
+                        badge_color = "#15803d" if theme == "light" else "#1F9D55"
                         
-                    lbl_text = f"📅 <b>{event['date']}</b> — <font color='#FFDE15'>{event['proj_id']}</font><br>{event['event_name']} (<font color='{badge_color}'>{days_str}</font>)"
+                    lbl_text = f"📅 <b>{event['date']}</b> — <font color='{proj_tag_color}'>{event['proj_id']}</font><br>{event['event_name']} (<font color='{badge_color}'><b>{days_str}</b></font>)"
                     lbl = QLabel(lbl_text)
                     lbl.setWordWrap(True)
-                    lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; border: none; background: transparent; padding-bottom: 4px;")
+                    lbl.setStyleSheet(f"color: {lbl_color}; font-size: 11px; border: none; background: transparent; padding-bottom: 4px;")
                     self.timeline_list_layout.addWidget(lbl)
                     
         except Exception as e:
