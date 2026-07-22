@@ -42,12 +42,12 @@ class SimpleChart(QWidget):
         theme = getattr(self, "theme", "dark")
         if theme == "light":
             grid_color = QColor("#cbd5e1")
-            text_color = QColor("#64748b")
-            accent_color = QColor("#0284c7")
+            text_color = QColor("#475569")
+            accent_color = QColor("#002C76")
         else:
-            grid_color = QColor("#3a3a4a")
-            text_color = QColor("#a0a0b0")
-            accent_color = QColor("#00ffcc")
+            grid_color = QColor("#253454")
+            text_color = QColor("#94a3b8")
+            accent_color = QColor("#FFDE15")
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)

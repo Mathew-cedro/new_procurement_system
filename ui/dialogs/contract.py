@@ -312,11 +312,11 @@ class AddContractDialog(BaseFormDialog):
             savings = self.abc_amount - val
             pct = (savings / self.abc_amount) * 100 if self.abc_amount > 0 else 0.0
             self.budget_feedback_lbl.setText(f"🟢 Savings: ₱{savings:,.2f} ({pct:.1f}% under ABC ₱{self.abc_amount:,.2f})")
-            self.budget_feedback_lbl.setStyleSheet("color: #2ecc71; font-size: 11px; font-weight: bold;")
+            self.budget_feedback_lbl.setStyleSheet("color: #1F9D55; font-size: 11px; font-weight: bold;")
         else:
             overrun = val - self.abc_amount
             self.budget_feedback_lbl.setText(f"⚠️ BUDGET OVERRUN: Exceeds ABC (₱{self.abc_amount:,.2f}) by ₱{overrun:,.2f}!")
-            self.budget_feedback_lbl.setStyleSheet("color: #ff4444; font-size: 11px; font-weight: bold;")
+            self.budget_feedback_lbl.setStyleSheet("color: #C9282D; font-size: 11px; font-weight: bold;")
 
     def submit_data(self):
         if not self.validate_inputs():
