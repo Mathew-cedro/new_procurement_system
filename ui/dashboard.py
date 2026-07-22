@@ -1628,18 +1628,18 @@ class Dashboard(QMainWindow):
                     days = current_date.daysTo(evt_date)
                     if days < 0:
                         days_str = f"Overdue by {abs(days)} days"
-                        badge_color = "#ff4d4d"
+                        badge_color = "#C9282D"
                     elif days == 0:
                         days_str = "Due today!"
-                        badge_color = "#ffaa00"
+                        badge_color = "#FFDE15"
                     elif days == 1:
                         days_str = "Due tomorrow"
-                        badge_color = "#ffaa00"
+                        badge_color = "#FFDE15"
                     else:
                         days_str = f"In {days} days"
-                        badge_color = "#00ffcc"
+                        badge_color = "#1F9D55"
                         
-                    lbl_text = f"📅 <b>{event['date']}</b> — <font color='#00ffcc'>{event['proj_id']}</font><br>{event['event_name']} (<font color='{badge_color}'>{days_str}</font>)"
+                    lbl_text = f"📅 <b>{event['date']}</b> — <font color='#FFDE15'>{event['proj_id']}</font><br>{event['event_name']} (<font color='{badge_color}'>{days_str}</font>)"
                     lbl = QLabel(lbl_text)
                     lbl.setWordWrap(True)
                     lbl.setStyleSheet("color: #a0a0b0; font-size: 11px; border: none; background: transparent; padding-bottom: 4px;")
