@@ -1,7 +1,16 @@
 import sqlite3
 from pathlib import Path
 from PySide6.QtCore import QDate
-from .connection import get_db_connection
+from .connection import get_db_connection, set_system_setting
+
+def mark_database_modified():
+    """Updates the last_modified_at system setting timestamp whenever local data changes."""
+    from datetime import datetime
+    try:
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        set_system_setting("last_modified_at", now_str)
+    except Exception as e:
+        print(f"Failed to mark database modified: {e}")
 
 def get_stats():
     conn = get_db_connection()

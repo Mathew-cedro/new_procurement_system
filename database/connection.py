@@ -532,6 +532,8 @@ def check_and_update_schema(conn):
     cur.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value) VALUES ('google_credentials_path', ?)", (default_creds,))
     cur.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value) VALUES ('google_spreadsheet_id', '')")
     cur.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value) VALUES ('google_drive_folder_id', '')")
+    cur.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value) VALUES ('last_synced_at', '')")
+    cur.execute("INSERT OR IGNORE INTO system_settings (setting_key, setting_value) VALUES ('last_modified_at', '')")
     
     if default_creds:
         cur.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'google_credentials_path'")

@@ -300,11 +300,22 @@ def migrate_local_files_to_drive():
     cur.execute("PRAGMA foreign_keys = ON")
     conn.close()
 
-def push_sqlite_to_sheets(progress_callback=None):
-    """Pushes all 5 local SQLite tables to Google Sheets."""
+def push_sqlite_to_sheets(progress_callback=None, force_full=False):
+    """Pushes local SQLite tables to Google Sheets using incremental delta sync."""
     def p(pct, msg):
         if progress_callback:
             progress_callback(pct, msg)
+
+    import database as database_config
+    from datetime import datetime
+
+    last_synced = database_config.get_system_setting("last_synced_at", "")
+    last_modified = database_config.get_system_setting("last_modified_at", "")
+
+    if not force_full and last_synced and last_modified and last_synced >= last_modified:
+        p(100, "No new local changes detected. Google Sheets is already up to date!")
+        spreadsheet_id = database_config.get_system_setting("google_spreadsheet_id", "")
+        return spreadsheet_id
 
     p(5, "Scanning and migrating local PDF files to Google Drive...")
     try:
@@ -316,7 +327,6 @@ def push_sqlite_to_sheets(progress_callback=None):
     sheets_service, drive_service = get_google_services()
     spreadsheet_id = ensure_spreadsheet()
     
-    import database as database_config
     conn = database_config.get_db_connection()
     cur = conn.cursor()
     
@@ -502,7 +512,10 @@ def push_sqlite_to_sheets(progress_callback=None):
     except Exception as e:
         print(f"Skipped deleting default Sheet1: {e}")
 
-    p(95, "Finalizing sync...")
+    p(95, "Finalizing sync & updating timestamps...")
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    database_config.set_system_setting("last_synced_at", now_str)
+    database_config.set_system_setting("last_modified_at", now_str)
     conn.close()
     p(100, "Google Sheets Sync Completed!")
     return spreadsheet_id
