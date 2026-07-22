@@ -12,6 +12,65 @@ else:
     ROOT_DIR = Path(__file__).parent.parent
 
 DB_PATH = "procurement.db"
+BACKUP_DIR = ROOT_DIR / "backups"
+
+def create_database_backup(label="auto"):
+    """Creates a timestamped snapshot backup of procurement.db in backups/ directory."""
+    import shutil
+    from datetime import datetime
+    try:
+        BACKUP_DIR.mkdir(exist_ok=True)
+        db_file = ROOT_DIR / DB_PATH
+        if db_file.exists():
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+            backup_filename = f"procurement_backup_{label}_{timestamp}.db"
+            backup_path = BACKUP_DIR / backup_filename
+            shutil.copy2(db_file, backup_path)
+            
+            # Prune old backups, keeping latest 15
+            backups = sorted(list(BACKUP_DIR.glob("procurement_backup_*.db")), key=lambda p: p.stat().st_mtime, reverse=True)
+            for old_b in backups[15:]:
+                try:
+                    old_b.unlink()
+                except Exception:
+                    pass
+            return str(backup_path)
+    except Exception as e:
+        print(f"Failed to create database backup: {e}")
+        return None
+
+def list_backups():
+    """Returns a list of available database backup files sorted by newest first."""
+    if not BACKUP_DIR.exists():
+        return []
+    items = []
+    from datetime import datetime
+    for p in sorted(list(BACKUP_DIR.glob("*.db")), key=lambda x: x.stat().st_mtime, reverse=True):
+        mtime = datetime.fromtimestamp(p.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+        size_kb = round(p.stat().st_size / 1024, 1)
+        items.append({
+            "filename": p.name,
+            "path": str(p.resolve()),
+            "mtime": mtime,
+            "size_kb": size_kb
+        })
+    return items
+
+def restore_database_backup(backup_path):
+    """Restores procurement.db from a specified backup path."""
+    import shutil
+    src = Path(backup_path)
+    if not src.exists():
+        return False, "Backup file does not exist."
+        
+    db_file = ROOT_DIR / DB_PATH
+    try:
+        # Create a safety backup before restoring
+        create_database_backup(label="pre_restore")
+        shutil.copy2(src, db_file)
+        return True, "Database successfully restored!"
+    except Exception as e:
+        return False, f"Failed to restore database: {e}"
 
 def seed():
     # 1. Back up system_settings if they exist

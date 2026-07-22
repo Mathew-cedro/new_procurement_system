@@ -1015,3 +1015,152 @@ def get_upcoming_timeline_events():
     return events
 
 
+def get_upcoming_alerts(days=90):
+    """Returns upcoming warranty expirations and pending payment/milestone deadlines within specified days."""
+    from datetime import datetime, timedelta
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    today = datetime.now().date()
+    cutoff = today + timedelta(days=days)
+    cutoff_str = cutoff.strftime("%Y-%m-%d")
+    
+    alerts = []
+    
+    # 1. Warranty Expirations
+    cur.execute("""
+        SELECT w.warranty_id, p.proj_id_no, p.project_name, w.warranty_end_date, w.warranty_status
+        FROM warranties w
+        JOIN contracts c ON w.contract_id = c.contract_id
+        JOIN projects p ON c.project_id = p.project_id
+        WHERE w.warranty_end_date IS NOT NULL AND w.warranty_end_date != ''
+          AND w.warranty_end_date <= ? AND w.warranty_status != 'Expired'
+    """, (cutoff_str,))
+    for r in cur.fetchall():
+        w_date_str = r[3]
+        try:
+            w_date = datetime.strptime(w_date_str, "%Y-%m-%d").date()
+            diff_days = (w_date - today).days
+        except Exception:
+            diff_days = 0
+            
+        severity = "urgent" if diff_days <= 14 else ("warning" if diff_days <= 30 else "info")
+        alerts.append({
+            "id": r[0],
+            "proj_id": r[1],
+            "project_name": r[2],
+            "title": f"Warranty Expiration ({r[1]})",
+            "date": w_date_str,
+            "days_remaining": diff_days,
+            "severity": severity,
+            "type": "warranty"
+        })
+
+    # 2. Payment/Milestone Deadlines
+    cur.execute("""
+        SELECT d.milestone_id, p.proj_id_no, p.project_name, d.payment_type, d.due_date_submission, d.payment_status
+        FROM deliveries_and_payments d
+        JOIN contracts c ON d.contract_id = c.contract_id
+        JOIN projects p ON c.project_id = p.project_id
+        WHERE d.due_date_submission IS NOT NULL AND d.due_date_submission != ''
+          AND d.due_date_submission <= ? AND d.payment_status != 'Complete'
+    """, (cutoff_str,))
+    for r in cur.fetchall():
+        d_date_str = r[4]
+        try:
+            d_date = datetime.strptime(d_date_str, "%Y-%m-%d").date()
+            diff_days = (d_date - today).days
+        except Exception:
+            diff_days = 0
+            
+        severity = "urgent" if diff_days < 0 else ("warning" if diff_days <= 14 else "info")
+        title_prefix = "OVERDUE Milestone" if diff_days < 0 else "Upcoming Milestone"
+        alerts.append({
+            "id": r[0],
+            "proj_id": r[1],
+            "project_name": r[2],
+            "title": f"{title_prefix}: {r[3]} ({r[1]})",
+            "date": d_date_str,
+            "days_remaining": diff_days,
+            "severity": severity,
+            "type": "payment"
+        })
+
+    conn.close()
+    alerts.sort(key=lambda x: x["days_remaining"])
+    return alerts
+
+def global_search(query):
+    """Searches across projects, contracts, suppliers, payments, and warranties."""
+    if not query or len(query.strip()) < 2:
+        return []
+        
+    q = f"%{query.strip()}%"
+    conn = get_db_connection()
+    cur = conn.cursor()
+    results = []
+    
+    # 1. Search Projects
+    cur.execute("""
+        SELECT project_id, proj_id_no, project_name, status, total_budget 
+        FROM projects 
+        WHERE proj_id_no LIKE ? OR project_name LIKE ? OR particulars LIKE ?
+    """, (q, q, q))
+    for r in cur.fetchall():
+        results.append({
+            "category": "Project",
+            "title": f"Project: {r[1]} - {r[2]}",
+            "subtitle": f"Status: {r[3]} | Budget: ₱{r[4]:,.2f}",
+            "item_id": r[0],
+            "type": "project"
+        })
+        
+    # 2. Search Contracts
+    cur.execute("""
+        SELECT contract_id, contract_no, contract_amount, winner_supplier 
+        FROM contracts 
+        WHERE contract_no LIKE ? OR winner_supplier LIKE ?
+    """, (q, q))
+    for r in cur.fetchall():
+        results.append({
+            "category": "Contract",
+            "title": f"Contract #{r[1]}",
+            "subtitle": f"Supplier: {r[3]} | Amount: ₱{r[2]:,.2f}",
+            "item_id": r[0],
+            "type": "contract"
+        })
+        
+    # 3. Search Suppliers
+    cur.execute("""
+        SELECT supplier_id, name, line_of_business, contact 
+        FROM suppliers 
+        WHERE name LIKE ? OR line_of_business LIKE ? OR contact LIKE ?
+    """, (q, q, q))
+    for r in cur.fetchall():
+        results.append({
+            "category": "Supplier",
+            "title": f"Supplier: {r[1]}",
+            "subtitle": f"Business: {r[2] or 'N/A'} | Contact: {r[3] or 'N/A'}",
+            "item_id": r[0],
+            "type": "supplier"
+        })
+        
+    # 4. Search Deliveries / Payments
+    cur.execute("""
+        SELECT milestone_id, payment_type, po_no, iar_no, amount 
+        FROM deliveries_and_payments 
+        WHERE po_no LIKE ? OR iar_no LIKE ? OR payment_type LIKE ?
+    """, (q, q, q))
+    for r in cur.fetchall():
+        results.append({
+            "category": "Payment",
+            "title": f"Payment: {r[1]} (PO #{r[2] or 'N/A'})",
+            "subtitle": f"IAR #{r[3] or 'N/A'} | Amount: ₱{r[4]:,.2f}",
+            "item_id": r[0],
+            "type": "payment"
+        })
+
+    conn.close()
+    return results
+
+

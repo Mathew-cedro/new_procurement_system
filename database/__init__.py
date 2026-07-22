@@ -5,7 +5,10 @@ from .connection import (
     get_system_setting,
     set_system_setting,
     get_theme_setting,
-    update_theme_setting
+    update_theme_setting,
+    create_database_backup,
+    list_backups,
+    restore_database_backup
 )
 from .crud import (
     get_stats,
@@ -28,6 +31,8 @@ from .crud import (
     add_warranty,
     update_warranty,
     get_dashboard_analytics,
+    get_upcoming_alerts,
+    global_search,
     generate_next_project_id,
     save_project_document,
     get_document_data,

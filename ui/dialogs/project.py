@@ -117,45 +117,23 @@ class CreateProjectDialog(BaseFormDialog):
         doc_layout = QFormLayout(doc_group)
         doc_layout.setSpacing(8)
         
-        # SARO Document PDF
-        saro_doc_layout = QHBoxLayout()
-        self.saro_lbl = QLabel("<i>No SARO PDF Uploaded</i>")
-        self.saro_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        saro_btn = QPushButton("Browse...")
-        saro_btn.clicked.connect(self.browse_saro)
-        saro_doc_layout.addWidget(self.saro_lbl)
-        saro_doc_layout.addWidget(saro_btn)
-        doc_layout.addRow("SARO PDF Document:", saro_doc_layout)
+        from ui.widgets import DragDropFileWidget
+
+# SARO Document PDF
+        self.saro_widget = DragDropFileWidget("📁 Drag & Drop SARO PDF here or Click to Browse")
+        doc_layout.addRow("SARO PDF Document:", self.saro_widget)
         
         # PPMP Document PDF
-        ppmp_doc_layout = QHBoxLayout()
-        self.ppmp_lbl = QLabel("<i>No PPMP PDF Uploaded</i>")
-        self.ppmp_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        ppmp_btn = QPushButton("Browse...")
-        ppmp_btn.clicked.connect(self.browse_ppmp)
-        ppmp_doc_layout.addWidget(self.ppmp_lbl)
-        ppmp_doc_layout.addWidget(ppmp_btn)
-        doc_layout.addRow("PPMP PDF Document:", ppmp_doc_layout)
+        self.ppmp_widget = DragDropFileWidget("📁 Drag & Drop PPMP PDF here or Click to Browse")
+        doc_layout.addRow("PPMP PDF Document:", self.ppmp_widget)
         
         # MS Document PDF
-        ms_doc_layout = QHBoxLayout()
-        self.ms_lbl = QLabel("<i>No Market Scoping PDF Uploaded</i>")
-        self.ms_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        ms_btn = QPushButton("Browse...")
-        ms_btn.clicked.connect(self.browse_ms)
-        ms_doc_layout.addWidget(self.ms_lbl)
-        ms_doc_layout.addWidget(ms_btn)
-        doc_layout.addRow("Market Scoping PDF:", ms_doc_layout)
+        self.ms_widget = DragDropFileWidget("📁 Drag & Drop Market Scoping PDF here or Click to Browse")
+        doc_layout.addRow("Market Scoping PDF:", self.ms_widget)
         
         # TS Document PDF
-        ts_doc_layout = QHBoxLayout()
-        self.ts_lbl = QLabel("<i>No Tech Specs/TOR PDF Uploaded</i>")
-        self.ts_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        ts_btn = QPushButton("Browse...")
-        ts_btn.clicked.connect(self.browse_ts)
-        ts_doc_layout.addWidget(self.ts_lbl)
-        ts_doc_layout.addWidget(ts_btn)
-        doc_layout.addRow("Tech Specs/TOR PDF:", ts_doc_layout)
+        self.ts_widget = DragDropFileWidget("📁 Drag & Drop Tech Specs/TOR PDF here or Click to Browse")
+        doc_layout.addRow("Tech Specs/TOR PDF:", self.ts_widget)
         
         scroll_layout.addWidget(doc_group)
         
@@ -183,7 +161,6 @@ class CreateProjectDialog(BaseFormDialog):
             
             # Load documents
             try:
-                import os
                 conn = database_config.get_db_connection()
                 cur = conn.cursor()
                 
@@ -191,21 +168,13 @@ class CreateProjectDialog(BaseFormDialog):
                 row = cur.fetchone()
                 if row:
                     if row["saro_pdf"]:
-                        self.saro_file_path = row["saro_pdf"]
-                        self.saro_lbl.setText("📄 " + os.path.basename(self.saro_file_path))
-                        self.saro_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.saro_widget.set_file_path(row["saro_pdf"])
                     if row["ppmp_pdf"]:
-                        self.ppmp_file_path = row["ppmp_pdf"]
-                        self.ppmp_lbl.setText("📄 " + os.path.basename(self.ppmp_file_path))
-                        self.ppmp_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.ppmp_widget.set_file_path(row["ppmp_pdf"])
                     if row["market_scoping_pdf"]:
-                        self.ms_file_path = row["market_scoping_pdf"]
-                        self.ms_lbl.setText("📄 " + os.path.basename(self.ms_file_path))
-                        self.ms_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.ms_widget.set_file_path(row["market_scoping_pdf"])
                     if row["tech_specs_pdf"]:
-                        self.ts_file_path = row["tech_specs_pdf"]
-                        self.ts_lbl.setText("📄 " + os.path.basename(self.ts_file_path))
-                        self.ts_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.ts_widget.set_file_path(row["tech_specs_pdf"])
                 conn.close()
             except Exception as e:
                 print(f"Error loading project docs in CreateProjectDialog: {e}")
@@ -306,15 +275,20 @@ class CreateProjectDialog(BaseFormDialog):
             project_id = result if success else None
             
         if success and project_id:
+            saro_path = self.saro_widget.get_file_path()
+            ppmp_path = self.ppmp_widget.get_file_path()
+            ms_path = self.ms_widget.get_file_path()
+            ts_path = self.ts_widget.get_file_path()
+            
             # Save files
-            if self.saro_file_path and not self.saro_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(project_id, "SARO", self.saro_file_path)
-            if self.ppmp_file_path and not self.ppmp_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(project_id, "PPMP", self.ppmp_file_path)
-            if self.ms_file_path and not self.ms_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(project_id, "MS", self.ms_file_path)
-            if self.ts_file_path and not self.ts_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(project_id, "TS", self.ts_file_path)
+            if saro_path and not saro_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(project_id, "SARO", saro_path)
+            if ppmp_path and not ppmp_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(project_id, "PPMP", ppmp_path)
+            if ms_path and not ms_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(project_id, "MS", ms_path)
+            if ts_path and not ts_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(project_id, "TS", ts_path)
                 
             QMessageBox.information(self, "Success", f"Project {proj_id} successfully {action_name}!")
             self.accept()
