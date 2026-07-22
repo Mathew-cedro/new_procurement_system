@@ -699,10 +699,11 @@ class Dashboard(QMainWindow):
         add_sup_btn = QPushButton("➕ Add Supplier")
         add_sup_btn.setStyleSheet("""
             QPushButton {
-                background-color: #00ffcc; color: #13131a;
+                background-color: #FFDE15; color: #10182B;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                border: none;
             }
-            QPushButton:hover { background-color: #00ccaa; }
+            QPushButton:hover { background-color: #e6c812; }
         """)
         add_sup_btn.clicked.connect(self.create_new_supplier)
         sup_header_layout.addWidget(add_sup_btn)
@@ -710,11 +711,11 @@ class Dashboard(QMainWindow):
         edit_sup_btn = QPushButton("📝 Edit Supplier")
         edit_sup_btn.setStyleSheet("""
             QPushButton {
-                background-color: #1f4e78; color: #ffffff;
+                background-color: #002C76; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
-                margin-left: 10px;
+                margin-left: 10px; border: 1px solid #1a428a;
             }
-            QPushButton:hover { background-color: #1a4063; }
+            QPushButton:hover { background-color: #003896; }
         """)
         edit_sup_btn.clicked.connect(self.edit_selected_supplier)
         sup_header_layout.addWidget(edit_sup_btn)
@@ -722,11 +723,11 @@ class Dashboard(QMainWindow):
         delete_sup_btn = QPushButton("🗑️ Delete Supplier")
         delete_sup_btn.setStyleSheet("""
             QPushButton {
-                background-color: #5c1d1d; color: #ff9999;
+                background-color: #C9282D; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
-                margin-left: 10px; border: 1px solid #8c2d2d;
+                margin-left: 10px; border: none;
             }
-            QPushButton:hover { background-color: #7c2d2d; color: #ffffff; }
+            QPushButton:hover { background-color: #a61c20; }
         """)
         delete_sup_btn.clicked.connect(self.delete_selected_supplier)
         sup_header_layout.addWidget(delete_sup_btn)
@@ -829,11 +830,11 @@ class Dashboard(QMainWindow):
         btn_create_sheet = QPushButton("Create New")
         btn_create_sheet.setStyleSheet("""
             QPushButton {
-                background-color: #1f4e78; color: #ffffff;
+                background-color: #002C76; color: #ffffff;
                 font-weight: bold; border-radius: 4px; padding: 5px 12px;
                 border: none;
             }
-            QPushButton:hover { background-color: #1a4063; }
+            QPushButton:hover { background-color: #003896; }
         """)
         btn_create_sheet.clicked.connect(self.create_new_google_sheet)
         sheet_h_layout.addWidget(self.sheet_id_input)
@@ -853,11 +854,11 @@ class Dashboard(QMainWindow):
         btn_create_folder = QPushButton("Create New")
         btn_create_folder.setStyleSheet("""
             QPushButton {
-                background-color: #1f4e78; color: #ffffff;
+                background-color: #002C76; color: #ffffff;
                 font-weight: bold; border-radius: 4px; padding: 5px 12px;
                 border: none;
             }
-            QPushButton:hover { background-color: #1a4063; }
+            QPushButton:hover { background-color: #003896; }
         """)
         btn_create_folder.clicked.connect(self.create_new_google_folder)
         folder_h_layout.addWidget(self.folder_id_input)
@@ -874,10 +875,11 @@ class Dashboard(QMainWindow):
         self.btn_push_sheets.setFixedHeight(35)
         self.btn_push_sheets.setStyleSheet("""
             QPushButton {
-                background-color: #00ffcc; color: #13131a;
+                background-color: #002C76; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                border: 1px solid #1a428a;
             }
-            QPushButton:hover { background-color: #00ccaa; }
+            QPushButton:hover { background-color: #003896; }
         """)
         self.btn_push_sheets.clicked.connect(self.push_data_to_sheets)
         
@@ -885,10 +887,11 @@ class Dashboard(QMainWindow):
         self.btn_pull_sheets.setFixedHeight(35)
         self.btn_pull_sheets.setStyleSheet("""
             QPushButton {
-                background-color: #0284c7; color: #ffffff;
+                background-color: #002C76; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                border: 1px solid #1a428a;
             }
-            QPushButton:hover { background-color: #0369a1; }
+            QPushButton:hover { background-color: #003896; }
         """)
         self.btn_pull_sheets.clicked.connect(self.pull_data_from_sheets)
         
@@ -908,13 +911,13 @@ class Dashboard(QMainWindow):
         self.reseed_btn = QPushButton("⚠️ Re-Seed System Database")
         self.reseed_btn.setStyleSheet("""
             QPushButton {
-                background-color: #ff6666; color: #ffffff;
+                background-color: #C9282D; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 10px 20px;
                 font-size: 13px;
                 max-width: 250px;
                 border: none;
             }
-            QPushButton:hover { background-color: #cc4444; }
+            QPushButton:hover { background-color: #a61c20; }
         """)
         self.reseed_btn.clicked.connect(self.reseed_database)
         db_layout.addWidget(self.reseed_btn)
@@ -932,7 +935,7 @@ class Dashboard(QMainWindow):
         status_form.setSpacing(10)
         
         self.lbl_auth_status = QLabel("Disconnected")
-        self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #ff6666;")
+        self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #C9282D;")
         status_form.addRow("Connection Status:", self.lbl_auth_status)
         
         self.lbl_auth_email = QLabel("Not Logged In")
@@ -947,10 +950,11 @@ class Dashboard(QMainWindow):
         self.btn_connect_google.setFixedHeight(35)
         self.btn_connect_google.setStyleSheet("""
             QPushButton {
-                background-color: #00ffcc; color: #13131a;
+                background-color: #002C76; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                border: none;
             }
-            QPushButton:hover { background-color: #00ccaa; }
+            QPushButton:hover { background-color: #003896; }
         """)
         self.btn_connect_google.clicked.connect(self.connect_google_account)
         
@@ -958,11 +962,11 @@ class Dashboard(QMainWindow):
         self.btn_disconnect_google.setFixedHeight(35)
         self.btn_disconnect_google.setStyleSheet("""
             QPushButton {
-                background-color: #ff6666; color: #ffffff;
+                background-color: #C9282D; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
                 border: none;
             }
-            QPushButton:hover { background-color: #cc4444; }
+            QPushButton:hover { background-color: #a61c20; }
         """)
         self.btn_disconnect_google.clicked.connect(self.disconnect_google_account)
         
@@ -1438,7 +1442,7 @@ class Dashboard(QMainWindow):
                 border-radius: 8px;
                 padding: 15px;
                 font-weight: bold;
-                color: #ff6666;
+                color: #C9282D;
                 font-size: 14px;
                 background-color: transparent;
             }}
@@ -1487,13 +1491,13 @@ class Dashboard(QMainWindow):
         if theme == "light":
             self.btn_light_theme.setChecked(True)
             self.btn_dark_theme.setChecked(False)
-            self.btn_light_theme.setStyleSheet(f"QPushButton {{ background-color: #0284c7; color: #ffffff; font-weight: bold; border-radius: 5px; border: none; }}")
-            self.btn_dark_theme.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: 1px solid {c_border_card}; border-radius: 5px; }} QPushButton:hover {{ background-color: #e2e8f0; }}")
+            self.btn_light_theme.setStyleSheet(f"QPushButton {{ background-color: #002C76; color: #ffffff; font-weight: bold; border-radius: 5px; border: none; }}")
+            self.btn_dark_theme.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: 1px solid {c_border_card}; border-radius: 5px; }} QPushButton:hover {{ background-color: #cbd5e1; }}")
         else:
             self.btn_dark_theme.setChecked(True)
             self.btn_light_theme.setChecked(False)
-            self.btn_dark_theme.setStyleSheet(f"QPushButton {{ background-color: #00ffcc; color: #13131a; font-weight: bold; border-radius: 5px; border: none; }}")
-            self.btn_light_theme.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: 1px solid {c_border_card}; border-radius: 5px; }} QPushButton:hover {{ background-color: #2b2b36; }}")
+            self.btn_dark_theme.setStyleSheet(f"QPushButton {{ background-color: #FFDE15; color: #10182B; font-weight: bold; border-radius: 5px; border: none; }}")
+            self.btn_light_theme.setStyleSheet(f"QPushButton {{ background-color: transparent; color: {c_text_muted}; border: 1px solid {c_border_card}; border-radius: 5px; }} QPushButton:hover {{ background-color: #253454; }}")
             
         # Update metric cards and chart widgets theme
         if hasattr(self, "budget_card"):
@@ -2402,19 +2406,19 @@ class Dashboard(QMainWindow):
             email = google_sync.get_connected_email()
             if email:
                 self.lbl_auth_status.setText("🟢 Connected")
-                self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #00ffcc;")
+                self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #1F9D55;")
                 self.lbl_auth_email.setText(email)
                 self.btn_connect_google.setEnabled(False)
                 self.btn_disconnect_google.setEnabled(True)
             else:
                 self.lbl_auth_status.setText("🔴 Disconnected")
-                self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #ff6666;")
+                self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #C9282D;")
                 self.lbl_auth_email.setText("Not Logged In")
                 self.btn_connect_google.setEnabled(True)
                 self.btn_disconnect_google.setEnabled(False)
         except Exception:
             self.lbl_auth_status.setText("🔴 Disconnected")
-            self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #ff6666;")
+            self.lbl_auth_status.setStyleSheet("font-weight: bold; color: #C9282D;")
             self.lbl_auth_email.setText("Not Logged In")
             self.btn_connect_google.setEnabled(True)
             self.btn_disconnect_google.setEnabled(False)
