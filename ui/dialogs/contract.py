@@ -350,6 +350,7 @@ class AddContractDialog(BaseFormDialog):
             action_name = "saved"
             
         if success:
+            target_id = self.project_id if self.project_id else po_jo
             noa_p = self.noa_widget.get_file_path()
             con_p = self.contract_widget.get_file_path()
             reso_p = self.reso_widget.get_file_path()
@@ -357,22 +358,22 @@ class AddContractDialog(BaseFormDialog):
             
             # Save files
             if noa_p and not noa_p.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "NOA", noa_p)
+                database_config.save_project_document(target_id, "NOA", noa_p)
             if con_p and not con_p.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "Contract", con_p)
+                database_config.save_project_document(target_id, "Contract", con_p)
             if self.reso_check.isChecked() and reso_p and not reso_p.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "BAC_Reso", reso_p)
+                database_config.save_project_document(target_id, "BAC_Reso", reso_p)
             elif not self.reso_check.isChecked():
                 try:
                     conn = database_config.get_db_connection()
                     cur = conn.cursor()
-                    cur.execute("UPDATE contracts SET bac_resolution_pdf = NULL, bac_resolution_pdf_data = NULL WHERE project_id = ? OR contract_id = ?", (self.project_id, po_jo))
+                    cur.execute("UPDATE contracts SET bac_resolution_pdf = NULL, bac_resolution_pdf_data = NULL WHERE project_id = ? OR contract_id = ?", (target_id, po_jo))
                     conn.commit()
                     conn.close()
                 except Exception:
                     pass
             if rq_p and not rq_p.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "RQ", rq_p)
+                database_config.save_project_document(target_id, "RQ", rq_p)
                     
             QMessageBox.information(self, "Success", f"Contract and Supplier details successfully {action_name}!")
             self.accept()
