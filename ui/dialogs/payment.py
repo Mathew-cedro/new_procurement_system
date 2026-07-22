@@ -108,6 +108,12 @@ class AddPaymentDialog(BaseFormDialog):
         self.check_date = QDateEdit(QDate.currentDate())
         self.check_date.setCalendarPopup(True)
         form.addRow("Check / ADA Date:", self.check_date)
+
+        self.iar_widget = DragDropFileWidget("📁 Drag & Drop Inspection & Acceptance Report (IAR) PDF here or Click to Browse")
+        form.addRow("IAR Document PDF:", self.iar_widget)
+        
+        self.po_widget = DragDropFileWidget("📁 Drag & Drop Purchase Order (PO) PDF here or Click to Browse")
+        form.addRow("PO Document PDF:", self.po_widget)
         
         # Populate if editing
         if self.payment_data:
@@ -150,6 +156,21 @@ class AddPaymentDialog(BaseFormDialog):
             c_date = self.payment_data.get("check_date_lddap_ada", "")
             if c_date:
                 self.check_date.setDate(QDate.fromString(c_date, "yyyy-MM-dd"))
+            
+            # Load existing docs
+            try:
+                conn = database_config.get_db_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT iar_pdf, po_pdf FROM deliveries_and_payments WHERE milestone_id = ?", (self.payment_data["id"],))
+                row = cur.fetchone()
+                if row:
+                    if row["iar_pdf"]:
+                        self.iar_widget.set_file_path(row["iar_pdf"])
+                    if row["po_pdf"]:
+                        self.po_widget.set_file_path(row["po_pdf"])
+                conn.close()
+            except Exception as e:
+                print(f"Error loading payment docs: {e}")
                 
         layout.addLayout(form)
         layout.addSpacing(15)
@@ -247,8 +268,13 @@ class AddPaymentDialog(BaseFormDialog):
             action_name = "recorded"
             
         if success:
+            iar_p = self.iar_widget.get_file_path()
+            po_p = self.po_widget.get_file_path()
+            if iar_p and not iar_p.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.contract_id, "IAR", iar_p)
+            if po_p and not po_p.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.contract_id, "PO_Phase3", po_p)
             QMessageBox.information(self, "Success", f"Disbursement payment of ₱{net:,.2f} successfully {action_name}!")
             self.accept()
         else:
             QMessageBox.critical(self, "Error", f"Failed to save payment record:\n{result}")
-

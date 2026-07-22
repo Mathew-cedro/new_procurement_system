@@ -162,54 +162,30 @@ class AddContractDialog(BaseFormDialog):
         self.sec_valid.setCalendarPopup(True)
         sec_layout.addRow("Security Validity Date:", self.sec_valid)
         
+        from ui.widgets import DragDropFileWidget
+        
         # Document Upload Group
         doc_group = QGroupBox("Contract & Award Documents")
         doc_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #3a3a4a; padding-top: 10px; }")
         doc_layout = QFormLayout(doc_group)
         doc_layout.setSpacing(8)
         
-        noa_layout = QHBoxLayout()
-        self.noa_lbl = QLabel("<i>No NOA PDF Uploaded</i>")
-        self.noa_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        noa_btn = QPushButton("Browse...")
-        noa_btn.clicked.connect(self.browse_noa)
-        noa_layout.addWidget(self.noa_lbl)
-        noa_layout.addWidget(noa_btn)
-        doc_layout.addRow("Notice of Award (NOA) PDF:", noa_layout)
+        self.noa_widget = DragDropFileWidget("📁 Drag & Drop Notice of Award (NOA) PDF here or Click to Browse")
+        doc_layout.addRow("Notice of Award (NOA) PDF:", self.noa_widget)
         
-        contract_layout = QHBoxLayout()
-        self.contract_lbl = QLabel("<i>No Signed Contract PDF Uploaded</i>")
-        self.contract_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        contract_btn = QPushButton("Browse...")
-        contract_btn.clicked.connect(self.browse_contract)
-        contract_layout.addWidget(self.contract_lbl)
-        contract_layout.addWidget(contract_btn)
-        doc_layout.addRow("Signed Contract PDF:", contract_layout)
+        self.contract_widget = DragDropFileWidget("📁 Drag & Drop Signed Contract PDF here or Click to Browse")
+        doc_layout.addRow("Signed Contract PDF:", self.contract_widget)
         
         self.reso_check = QCheckBox("BAC Reso (IF PRIMARY SUPPLIER IS NOT AVAILABLE)")
         self.reso_check.stateChanged.connect(self.toggle_reso_upload)
         doc_layout.addRow("", self.reso_check)
         
-        self.reso_upload_widget = QWidget()
-        reso_layout = QHBoxLayout(self.reso_upload_widget)
-        reso_layout.setContentsMargins(0, 0, 0, 0)
-        self.reso_lbl = QLabel("<i>No BAC Reso PDF Uploaded</i>")
-        self.reso_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        reso_btn = QPushButton("Browse...")
-        reso_btn.clicked.connect(self.browse_reso)
-        reso_layout.addWidget(self.reso_lbl)
-        reso_layout.addWidget(reso_btn)
-        doc_layout.addRow("BAC Resolution PDF:", self.reso_upload_widget)
-        self.reso_upload_widget.setVisible(False)
+        self.reso_widget = DragDropFileWidget("📁 Drag & Drop BAC Resolution PDF here or Click to Browse")
+        doc_layout.addRow("BAC Resolution PDF:", self.reso_widget)
+        self.reso_widget.setVisible(False)
         
-        rq_layout = QHBoxLayout()
-        self.rq_lbl = QLabel("<i>No RQ PDF Uploaded</i>")
-        self.rq_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        rq_btn = QPushButton("Browse...")
-        rq_btn.clicked.connect(self.browse_rq)
-        rq_layout.addWidget(self.rq_lbl)
-        rq_layout.addWidget(rq_btn)
-        doc_layout.addRow("Request Order (RQ) PDF:", rq_layout)
+        self.rq_widget = DragDropFileWidget("📁 Drag & Drop Request Order (RQ) PDF here or Click to Browse")
+        doc_layout.addRow("Request Order (RQ) PDF:", self.rq_widget)
         
         scroll_layout.addWidget(con_group)
         scroll_layout.addWidget(sec_group)
@@ -244,17 +220,17 @@ class AddContractDialog(BaseFormDialog):
             self.duration.setValue(self.contract_data.get("contract_duration_days", 30))
             self.calculate_end_date()
             
-            nat = self.contract_data.get("nature_of_procurement", "")
-            idx = self.nature.findText(nat)
+            idx = self.nature.findText(self.contract_data.get("nature_of_procurement", ""))
             if idx >= 0:
                 self.nature.setCurrentIndex(idx)
                 
-            self.sec_form.setText(self.contract_data.get("performance_security_form", ""))
+            self.sec_form.setText(self.contract_data.get("performance_security_form", "Surety Bond"))
             self.sec_amount.setValue(self.contract_data.get("performance_security_amount", 0.0))
             
-            sv_date = self.contract_data.get("performance_security_validity", "")
-            if sv_date:
-                self.sec_valid.setDate(QDate.fromString(sv_date, "yyyy-MM-dd"))
+            v_date = self.contract_data.get("performance_security_validity", "")
+            if v_date:
+                self.sec_valid.setDate(QDate.fromString(v_date, "yyyy-MM-dd"))
+                
             self.loading_data = False
                 
         # Load existing docs
@@ -265,25 +241,16 @@ class AddContractDialog(BaseFormDialog):
                 cur.execute("SELECT * FROM contracts WHERE project_id = ?", (self.project_id,))
                 row = cur.fetchone()
                 if row:
-                    import os
                     if row["noa_pdf"]:
-                        self.noa_file_path = row["noa_pdf"]
-                        self.noa_lbl.setText("📄 " + os.path.basename(self.noa_file_path))
-                        self.noa_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.noa_widget.set_file_path(row["noa_pdf"])
                     if row["signed_contract_pdf"]:
-                        self.contract_file_path = row["signed_contract_pdf"]
-                        self.contract_lbl.setText("📄 " + os.path.basename(self.contract_file_path))
-                        self.contract_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.contract_widget.set_file_path(row["signed_contract_pdf"])
                     if row["bac_resolution_pdf"]:
-                        self.reso_file_path = row["bac_resolution_pdf"]
-                        self.reso_lbl.setText("📄 " + os.path.basename(self.reso_file_path))
-                        self.reso_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.reso_widget.set_file_path(row["bac_resolution_pdf"])
                         self.reso_check.setChecked(True)
-                        self.reso_upload_widget.setVisible(True)
+                        self.reso_widget.setVisible(True)
                     if row["request_order_pdf"]:
-                        self.rq_file_path = row["request_order_pdf"]
-                        self.rq_lbl.setText("📄 " + os.path.basename(self.rq_file_path))
-                        self.rq_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                        self.rq_widget.set_file_path(row["request_order_pdf"])
                 conn.close()
             except Exception as e:
                 print(f"Error loading Phase 1 docs in AddContractDialog: {e}")
@@ -312,78 +279,13 @@ class AddContractDialog(BaseFormDialog):
         self.validate_inputs()
         
     def toggle_reso_upload(self, state):
-        self.reso_upload_widget.setVisible(state == 2)
+        self.reso_widget.setVisible(state == 2)
         
-    def browse_noa(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Upload NOA Document (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
-        if file_path:
-            import os
-            self.noa_lbl.setText("📄 " + os.path.basename(file_path))
-            self.noa_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-            self.noa_file_path = file_path
-            
-    def browse_contract(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Signed Contract (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
-        if file_path:
-            import os
-            self.contract_lbl.setText("📄 " + os.path.basename(file_path))
-            self.contract_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-            self.contract_file_path = file_path
-            
-    def browse_reso(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Upload BAC Resolution (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
-        if file_path:
-            import os
-            self.reso_lbl.setText("📄 " + os.path.basename(file_path))
-            self.reso_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-            self.reso_file_path = file_path
+    def browse_noa(self): pass
+    def browse_contract(self): pass
+    def browse_reso(self): pass
+    def browse_rq(self): pass
 
-    def browse_rq(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Request Order (RQ) (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
-        if file_path:
-            import os
-            self.rq_lbl.setText("📄 " + os.path.basename(file_path))
-            self.rq_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-            self.rq_file_path = file_path
-        
-    def validate_inputs(self):
-        po_jo_valid = len(self.po_jo_no.text().strip()) > 0
-        con_amount_valid = self.con_amount.value() > 0.0
-        self.set_field_validation(self.po_jo_no, po_jo_valid)
-        self.set_field_validation(self.con_amount, con_amount_valid)
-        
-        sup_valid = True
-        if self.new_supplier_check.isChecked():
-            sup_valid = len(self.s_name.text().strip()) > 0
-            self.set_field_validation(self.s_name, sup_valid)
-        else:
-            self.clear_field_validation(self.s_name)
-            
-        return po_jo_valid and con_amount_valid and sup_valid
-        
-    def populate_suppliers(self):
-        self.supplier_combo.clear()
-        try:
-            suppliers = database_config.get_suppliers()
-            for s in suppliers:
-                self.supplier_combo.addItem(s["supplier_name"], s["id"])
-        except Exception as e:
-            print(f"Error loading suppliers list: {e}")
-            
-    def toggle_new_supplier_form(self, state):
-        self.supplier_frame.setVisible(state == 2)
-        
-    def calculate_security_default(self):
-        if getattr(self, "loading_data", False):
-            return
-        self.sec_amount.setValue(self.con_amount.value() * 0.10)
-        
-    def calculate_end_date(self):
-        start = self.ntp_date.date()
-        days = self.duration.value()
-        expected = start.addDays(days)
-        self.end_date_lbl.setText(expected.toString("yyyy-MM-dd"))
-        
     def submit_data(self):
         if not self.validate_inputs():
             if not self.po_jo_no.text().strip():
@@ -399,7 +301,6 @@ class AddContractDialog(BaseFormDialog):
         
         supplier_id = None
         if self.new_supplier_check.isChecked():
-            # Add supplier first
             s_name_txt = self.s_name.text().strip()
             success, s_res = database_config.add_supplier(
                 s_name_txt, self.s_tin.text().strip(), self.s_address.text().strip(),
@@ -417,14 +318,13 @@ class AddContractDialog(BaseFormDialog):
                 QMessageBox.warning(self, "Validation Error", "Please select a supplier from the list or add a new one.")
                 return
                 
-        # Financial cap default
         f_cap = self.f_capacity.value()
         if f_cap == 0:
             f_cap = amount
             
         sec_amt = self.sec_amount.value()
         if sec_amt == 0:
-            sec_amt = amount * 0.1 # default 10%
+            sec_amt = amount * 0.1
             
         expected_end = self.end_date_lbl.text()
         
@@ -450,24 +350,29 @@ class AddContractDialog(BaseFormDialog):
             action_name = "saved"
             
         if success:
+            noa_p = self.noa_widget.get_file_path()
+            con_p = self.contract_widget.get_file_path()
+            reso_p = self.reso_widget.get_file_path()
+            rq_p = self.rq_widget.get_file_path()
+            
             # Save files
-            if self.noa_file_path and not self.noa_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "NOA", self.noa_file_path)
-            if self.contract_file_path and not self.contract_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "Contract", self.contract_file_path)
-            if self.reso_check.isChecked() and self.reso_file_path and not self.reso_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "BAC_Reso", self.reso_file_path)
+            if noa_p and not noa_p.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "NOA", noa_p)
+            if con_p and not con_p.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "Contract", con_p)
+            if self.reso_check.isChecked() and reso_p and not reso_p.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "BAC_Reso", reso_p)
             elif not self.reso_check.isChecked():
                 try:
                     conn = database_config.get_db_connection()
                     cur = conn.cursor()
-                    cur.execute("UPDATE contracts SET bac_resolution_pdf = NULL, bac_resolution_pdf_data = NULL WHERE project_id = ?", (self.project_id,))
+                    cur.execute("UPDATE contracts SET bac_resolution_pdf = NULL, bac_resolution_pdf_data = NULL WHERE project_id = ? OR contract_id = ?", (self.project_id, po_jo))
                     conn.commit()
                     conn.close()
                 except Exception:
                     pass
-            if self.rq_file_path and not self.rq_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "RQ", self.rq_file_path)
+            if rq_p and not rq_p.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "RQ", rq_p)
                     
             QMessageBox.information(self, "Success", f"Contract and Supplier details successfully {action_name}!")
             self.accept()

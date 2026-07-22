@@ -82,15 +82,11 @@ class AddWarrantyDialog(BaseFormDialog):
         self.coa_claim.setChecked(False)
         form.addRow("COA Claims Petition:", self.coa_claim)
         
+        from ui.widgets import DragDropFileWidget
+        
         # Warranty Certificate PDF File Uploader layout
-        self.warranty_lbl = QLabel("<i>No Warranty Certificate PDF Uploaded</i>")
-        self.warranty_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        w_btn = QPushButton("Browse...")
-        w_btn.clicked.connect(self.browse_warranty)
-        w_layout = QHBoxLayout()
-        w_layout.addWidget(self.warranty_lbl)
-        w_layout.addWidget(w_btn)
-        form.addRow("Warranty Certificate PDF:", w_layout)
+        self.warranty_widget = DragDropFileWidget("📁 Drag & Drop Warranty Certificate PDF here or Click to Browse")
+        form.addRow("Warranty Certificate PDF:", self.warranty_widget)
         
         # Populate if editing
         if self.warranty_data:
@@ -117,15 +113,12 @@ class AddWarrantyDialog(BaseFormDialog):
             
             # Load existing document from SQLite
             try:
-                import os
                 conn = database_config.get_db_connection()
                 cur = conn.cursor()
                 cur.execute("SELECT warranty_certificate_pdf FROM warranties WHERE contract_id = ?", (self.contract_id,))
                 row = cur.fetchone()
                 if row and row["warranty_certificate_pdf"]:
-                    self.warranty_file_path = row["warranty_certificate_pdf"]
-                    self.warranty_lbl.setText("📄 " + os.path.basename(self.warranty_file_path))
-                    self.warranty_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                    self.warranty_widget.set_file_path(row["warranty_certificate_pdf"])
                 conn.close()
             except Exception as e:
                 print(f"Error loading existing warranty document: {e}")
@@ -163,12 +156,7 @@ class AddWarrantyDialog(BaseFormDialog):
         self.end_date_lbl.setText(expected.toString("yyyy-MM-dd"))
         
     def browse_warranty(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Warranty Certificate (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
-        if file_path:
-            import os
-            self.warranty_lbl.setText("📄 " + os.path.basename(file_path))
-            self.warranty_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-            self.warranty_file_path = file_path
+        pass
             
     def submit_data(self):
         if not self.validate_inputs():
@@ -195,9 +183,10 @@ class AddWarrantyDialog(BaseFormDialog):
             action_name = "saved"
             
         if success:
-            if self.warranty_file_path and not self.warranty_file_path.startswith("uploaded_documents/"):
-                if self.project_id:
-                    database_config.save_project_document(self.project_id, "Warranty", self.warranty_file_path)
+            w_path = self.warranty_widget.get_file_path()
+            if w_path and not w_path.startswith("uploaded_documents/"):
+                target_id = self.project_id if self.project_id else self.contract_id
+                database_config.save_project_document(target_id, "Warranty", w_path)
             QMessageBox.information(self, "Success", f"Warranty and retention security details successfully {action_name}!")
             self.accept()
         else:

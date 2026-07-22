@@ -372,8 +372,6 @@ class AddBidDialog(BaseFormDialog):
         self.box_c_input = QLineEdit("Pedro Reyes")
         form.addRow("Signatory Box C (Approved by):", self.box_c_input)
         
-        scroll_layout.addWidget(bid_group)
-        
         # Document uploads groupbox
         doc_group = QGroupBox("Bidding Documents")
         doc_group.setStyleSheet("QGroupBox { color: #00ffcc; font-weight: bold; border: 1px solid #3a3a4a; padding-top: 10px; }")
@@ -381,14 +379,8 @@ class AddBidDialog(BaseFormDialog):
         doc_layout.setSpacing(8)
         
         # Abstract Document PDF
-        abs_doc_layout = QHBoxLayout()
-        self.abs_lbl = QLabel("<i>No Abstract PDF Uploaded</i>")
-        self.abs_lbl.setStyleSheet("color: #aaaaaa; font-size: 11px;")
-        abs_btn = QPushButton("Browse...")
-        abs_btn.clicked.connect(self.browse_abstract)
-        abs_doc_layout.addWidget(self.abs_lbl)
-        abs_doc_layout.addWidget(abs_btn)
-        doc_layout.addRow("Abstract of Quotations PDF:", abs_doc_layout)
+        self.abs_widget = DragDropFileWidget("📁 Drag & Drop Abstract of Quotations PDF here or Click to Browse")
+        doc_layout.addRow("Abstract of Quotations PDF:", self.abs_widget)
         
         scroll_layout.addWidget(doc_group)
         
@@ -420,15 +412,12 @@ class AddBidDialog(BaseFormDialog):
             
             # Load Abstract doc
             try:
-                import os
                 conn = database_config.get_db_connection()
                 cur = conn.cursor()
                 cur.execute("SELECT abstract_quotations_pdf FROM projects WHERE project_id = ?", (self.project_id,))
                 row = cur.fetchone()
                 if row and row["abstract_quotations_pdf"]:
-                    self.abstract_file_path = row["abstract_quotations_pdf"]
-                    self.abs_lbl.setText("📄 " + os.path.basename(self.abstract_file_path))
-                    self.abs_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
+                    self.abs_widget.set_file_path(row["abstract_quotations_pdf"])
                 conn.close()
             except Exception as e:
                 print(f"Error loading Abstract doc in AddBidDialog: {e}")
@@ -456,12 +445,7 @@ class AddBidDialog(BaseFormDialog):
         self.validate_inputs()
         
     def browse_abstract(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Upload Abstract of Quotations (PDF)", "", "PDF Files (*.pdf);;All Files (*)")
-        if file_path:
-            import os
-            self.abs_lbl.setText("📄 " + os.path.basename(file_path))
-            self.abs_lbl.setStyleSheet("color: #00ffcc; font-weight: bold;")
-            self.abstract_file_path = file_path
+        pass
 
     def validate_inputs(self):
         ref_valid = len(self.ref_input.text().strip()) > 0
@@ -498,11 +482,11 @@ class AddBidDialog(BaseFormDialog):
             action_name = "recorded"
             
         if success:
-            if self.abstract_file_path and not self.abstract_file_path.startswith("uploaded_documents/"):
-                database_config.save_project_document(self.project_id, "Abstract", self.abstract_file_path)
+            abs_path = self.abs_widget.get_file_path()
+            if abs_path and not abs_path.startswith("uploaded_documents/"):
+                database_config.save_project_document(self.project_id, "Abstract", abs_path)
                 
             QMessageBox.information(self, "Success", f"Bidding details successfully {action_name}!")
             self.accept()
         else:
             QMessageBox.critical(self, "Error", f"Failed to save bidding details:\n{result}")
-

@@ -830,10 +830,10 @@ def save_project_document(target_id, document_type, file_path):
                 "RQ": "request_order_pdf"
             }
             pdf_col = col_map[document_type]
-            cur.execute(f"UPDATE contracts SET {pdf_col} = ? WHERE project_id = ?", (rel_path, target_id))
+            cur.execute(f"UPDATE contracts SET {pdf_col} = ? WHERE project_id = ? OR contract_id = ?", (rel_path, target_id, target_id))
             
         elif document_type in ["IAR", "PO_Phase3"]:
-            cur.execute("SELECT contract_id FROM contracts WHERE project_id = ?", (target_id,))
+            cur.execute("SELECT contract_id FROM contracts WHERE project_id = ? OR contract_id = ?", (target_id, target_id))
             con_row = cur.fetchone()
             if con_row:
                 cid = con_row["contract_id"]
@@ -850,11 +850,10 @@ def save_project_document(target_id, document_type, file_path):
                 """, (rel_path, cid, cid))
                 
         elif document_type == "Warranty":
-            cur.execute("SELECT contract_id FROM contracts WHERE project_id = ?", (target_id,))
+            cur.execute("SELECT contract_id FROM contracts WHERE project_id = ? OR contract_id = ?", (target_id, target_id))
             con_row = cur.fetchone()
-            if con_row:
-                cid = con_row["contract_id"]
-                cur.execute("UPDATE warranties SET warranty_certificate_pdf = ? WHERE contract_id = ?", (rel_path, cid))
+            cid = con_row["contract_id"] if con_row else target_id
+            cur.execute("UPDATE warranties SET warranty_certificate_pdf = ? WHERE contract_id = ?", (rel_path, cid))
                 
         conn.commit()
         conn.close()
