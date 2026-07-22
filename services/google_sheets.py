@@ -176,17 +176,14 @@ def ensure_drive_folder():
     return folder_id
 
 def migrate_local_files_to_drive():
-    """Finds any local file paths in the database, uploads them to Drive, and updates database records."""
+    """Scans all SQLite tables for local document paths, uploads them to Google Drive, and saves their web URLs."""
     import database as database_config
     from pathlib import Path
+    from database.connection import ROOT_DIR, SCHEMA_DIR
     
     conn = database_config.get_db_connection()
     cur = conn.cursor()
-    cur.execute("PRAGMA foreign_keys = OFF")
     
-    from database.connection import ROOT_DIR, SCHEMA_DIR
-    base_dir = ROOT_DIR
-
     def resolve_local_file(val):
         if not val or str(val).startswith("http"):
             return None
@@ -199,106 +196,119 @@ def migrate_local_files_to_drive():
                 return cand
         return None
 
+    to_upload = [] # List of tuples: (table, pk_col, pk_val, pdf_col, local_path, filename)
+
     # 1. Projects
     try:
         cur.execute("SELECT project_id, saro_pdf, ppmp_pdf, market_scoping_pdf, tech_specs_pdf, abstract_quotations_pdf FROM projects")
         for row in cur.fetchall():
             pid = row["project_id"]
-            updates = {}
             for col in ["saro_pdf", "ppmp_pdf", "market_scoping_pdf", "tech_specs_pdf", "abstract_quotations_pdf"]:
                 val = row[col]
                 local_path = resolve_local_file(val)
                 if local_path:
-                    try:
-                        filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}{local_path.suffix}"
-                        url = upload_file_to_drive(str(local_path), filename)
-                        updates[col] = url
-                    except Exception as e:
-                        print(f"Failed to migrate project file {val}: {e}")
-            if updates:
-                cols = ", ".join(f"{k} = ?" for k in updates.keys())
-                params = list(updates.values()) + [pid]
-                cur.execute(f"UPDATE projects SET {cols} WHERE project_id = ?", tuple(params))
+                    fn = f"doc_{pid}_{col.replace('_pdf', '').upper()}{local_path.suffix}"
+                    to_upload.append(("projects", "project_id", pid, col, local_path, fn))
     except Exception as e:
-        print(f"Failed to scan project files for migration: {e}")
-            
+        print(f"Error scanning projects for migration: {e}")
+
     # 2. Contracts
     try:
         cur.execute("SELECT contract_id, project_id, noa_pdf, signed_contract_pdf, request_order_pdf, bac_resolution_pdf FROM contracts")
         for row in cur.fetchall():
             cid = row["contract_id"]
             pid = row["project_id"]
-            updates = {}
+            doc_id = pid if pid else cid
             for col in ["noa_pdf", "signed_contract_pdf", "request_order_pdf", "bac_resolution_pdf"]:
                 val = row[col]
                 local_path = resolve_local_file(val)
                 if local_path:
-                    try:
-                        filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}{local_path.suffix}"
-                        url = upload_file_to_drive(str(local_path), filename)
-                        updates[col] = url
-                    except Exception as e:
-                        print(f"Failed to migrate contract file {val}: {e}")
-            if updates:
-                cols = ", ".join(f"{k} = ?" for k in updates.keys())
-                params = list(updates.values()) + [cid]
-                cur.execute(f"UPDATE contracts SET {cols} WHERE contract_id = ?", tuple(params))
+                    fn = f"doc_{doc_id}_{col.replace('_pdf', '').upper()}{local_path.suffix}"
+                    to_upload.append(("contracts", "contract_id", cid, col, local_path, fn))
     except Exception as e:
-        print(f"Failed to scan contract files for migration: {e}")
-            
+        print(f"Error scanning contracts for migration: {e}")
+
     # 3. Deliveries
     try:
         cur.execute("SELECT milestone_id, contract_id, iar_pdf, po_pdf FROM deliveries_and_payments")
         for row in cur.fetchall():
             mid = row["milestone_id"]
             cid = row["contract_id"]
-            cur.execute("SELECT project_id FROM contracts WHERE contract_id = ?", (cid,))
-            proj_row = cur.fetchone()
-            pid = proj_row["project_id"] if proj_row else cid
-            
-            updates = {}
             for col in ["iar_pdf", "po_pdf"]:
                 val = row[col]
                 local_path = resolve_local_file(val)
                 if local_path:
-                    try:
-                        filename = f"doc_{pid}_{col.replace('_pdf', '').upper()}_{mid}{local_path.suffix}"
-                        url = upload_file_to_drive(str(local_path), filename)
-                        updates[col] = url
-                    except Exception as e:
-                        print(f"Failed to migrate delivery file {val}: {e}")
-            if updates:
-                cols = ", ".join(f"{k} = ?" for k in updates.keys())
-                params = list(updates.values()) + [mid]
-                cur.execute(f"UPDATE deliveries_and_payments SET {cols} WHERE milestone_id = ?", tuple(params))
+                    fn = f"doc_{cid}_{col.replace('_pdf', '').upper()}_{mid}{local_path.suffix}"
+                    to_upload.append(("deliveries_and_payments", "milestone_id", mid, col, local_path, fn))
     except Exception as e:
-        print(f"Failed to scan delivery files for migration: {e}")
-            
+        print(f"Error scanning deliveries for migration: {e}")
+
     # 4. Warranties
     try:
         cur.execute("SELECT warranty_id, contract_id, warranty_certificate_pdf FROM warranties")
         for row in cur.fetchall():
             wid = row["warranty_id"]
             cid = row["contract_id"]
-            cur.execute("SELECT project_id FROM contracts WHERE contract_id = ?", (cid,))
-            proj_row = cur.fetchone()
-            pid = proj_row["project_id"] if proj_row else cid
-            
             val = row["warranty_certificate_pdf"]
             local_path = resolve_local_file(val)
             if local_path:
-                try:
-                    filename = f"doc_{pid}_WARRANTY{local_path.suffix}"
-                    url = upload_file_to_drive(str(local_path), filename)
-                    cur.execute("UPDATE warranties SET warranty_certificate_pdf = ? WHERE warranty_id = ?", (url, wid))
-                except Exception as e:
-                    print(f"Failed to migrate warranty file {val}: {e}")
+                fn = f"doc_{cid}_WARRANTY_{wid}{local_path.suffix}"
+                to_upload.append(("warranties", "warranty_id", wid, "warranty_certificate_pdf", local_path, fn))
     except Exception as e:
-        print(f"Failed to scan warranty files for migration: {e}")
-                    
-    conn.commit()
-    cur.execute("PRAGMA foreign_keys = ON")
+        print(f"Error scanning warranties for migration: {e}")
+
     conn.close()
+
+    if not to_upload:
+        return
+
+    # Perform Google Drive uploads outside database connection
+    uploaded_results = []
+    for item in to_upload:
+        tbl, pk_col, pk_val, col, l_path, fn = item
+        try:
+            url = upload_file_to_drive(str(l_path), fn)
+            uploaded_results.append((tbl, pk_col, pk_val, col, url))
+        except Exception as e:
+            print(f"Failed to upload file {fn} to Drive: {e}")
+
+    # Save URLs back to SQLite in a fresh transaction
+    if uploaded_results:
+        conn = database_config.get_db_connection()
+        cur = conn.cursor()
+        cur.execute("PRAGMA foreign_keys = OFF")
+        for tbl, pk_col, pk_val, col, url in uploaded_results:
+            try:
+                cur.execute(f"UPDATE {tbl} SET {col} = ? WHERE {pk_col} = ?", (url, pk_val))
+            except Exception as e:
+                print(f"Failed to save URL for {tbl} #{pk_val}: {e}")
+        conn.commit()
+        cur.execute("PRAGMA foreign_keys = ON")
+        conn.close()
+
+def has_unmigrated_files():
+    import database as database_config
+    conn = database_config.get_db_connection()
+    cur = conn.cursor()
+    
+    queries = [
+        "SELECT saro_pdf, ppmp_pdf, market_scoping_pdf, tech_specs_pdf, abstract_quotations_pdf FROM projects",
+        "SELECT noa_pdf, signed_contract_pdf, request_order_pdf, bac_resolution_pdf FROM contracts",
+        "SELECT iar_pdf, po_pdf FROM deliveries_and_payments",
+        "SELECT warranty_certificate_pdf FROM warranties"
+    ]
+    for q in queries:
+        try:
+            cur.execute(q)
+            for row in cur.fetchall():
+                for val in row:
+                    if val and not str(val).startswith("http") and ("uploaded_documents" in str(val) or Path(str(val)).exists()):
+                        conn.close()
+                        return True
+        except Exception:
+            pass
+    conn.close()
+    return False
 
 def push_sqlite_to_sheets(progress_callback=None, force_full=False):
     """Pushes local SQLite tables to Google Sheets using incremental delta sync."""
@@ -312,7 +322,7 @@ def push_sqlite_to_sheets(progress_callback=None, force_full=False):
     last_synced = database_config.get_system_setting("last_synced_at", "")
     last_modified = database_config.get_system_setting("last_modified_at", "")
 
-    if not force_full and last_synced and last_modified and last_synced >= last_modified:
+    if not force_full and last_synced and last_modified and last_synced >= last_modified and not has_unmigrated_files():
         p(100, "No new local changes detected. Google Sheets is already up to date!")
         spreadsheet_id = database_config.get_system_setting("google_spreadsheet_id", "")
         return spreadsheet_id
@@ -416,41 +426,14 @@ def push_sqlite_to_sheets(progress_callback=None, force_full=False):
         for table in tables:
             grid_id = sheet_id_map.get(table)
             if grid_id is not None:
-                if table == "projects":
-                    cur.execute("""
-                        SELECT 
-                            p.project_id, p.project_name, p.bureau_division, p.focal_person, p.focal_contact_email,
-                            p.nature_of_procurement, p.mode_of_procurement, p.approved_budget_abc, p.source_of_funds,
-                            p.fund_source_type, p.app_cycle, p.saro_control_number, p.bid_reference_no, p.post_to_philgeps,
-                            p.abstract_of_quotations_no, p.bac_resolution_no, p.date_received_bacsec, p.date_received_pcmd,
-                            p.signatory_box_a, p.signatory_box_c, p.status, p.remarks,
-                            p.saro_pdf, p.ppmp_pdf, p.market_scoping_pdf, p.tech_specs_pdf, p.abstract_quotations_pdf,
-                            c.noa_pdf, c.signed_contract_pdf, c.bac_resolution_pdf, c.request_order_pdf,
-                            d.iar_pdf, d.po_pdf,
-                            w.warranty_certificate_pdf
-                        FROM projects p
-                        LEFT JOIN contracts c ON p.project_id = c.project_id OR p.project_id = c.contract_id
-                        LEFT JOIN (
-                            SELECT contract_id, iar_pdf, po_pdf, MAX(milestone_id) 
-                            FROM deliveries_and_payments 
-                            GROUP BY contract_id
-                        ) d ON c.contract_id = d.contract_id
-                        LEFT JOIN warranties w ON c.contract_id = w.contract_id
-                    """)
-                    rows_data = cur.fetchall()
-                    select_cols = [desc[0] for desc in cur.description]
-                else:
-                    cur.execute(f"PRAGMA table_info({table})")
-                    columns_info = cur.fetchall()
-                    select_cols = [c[1] for c in columns_info if not c[1].endswith("_data")]
-                    cols_str = ", ".join(f'"{c}"' for c in select_cols)
-                    cur.execute(f"SELECT {cols_str} FROM {table}")
-                    rows_data = cur.fetchall()
-                    
+                # Fetch columns for metadata and auto-resizing
+                cur.execute(f"PRAGMA table_info({table})")
+                columns_info = cur.fetchall()
+                select_cols = [c[1] for c in columns_info if not c[1].endswith("_data")]
                 num_cols = len(select_cols)
                 
-                format_requests = [
-                    # Header format (Dark blue background, white bold text, centered)
+                # Non-chip styling request
+                style_requests = [
                     {
                         'repeatCell': {
                             'range': {
@@ -462,17 +445,8 @@ def push_sqlite_to_sheets(progress_callback=None, force_full=False):
                             },
                             'cell': {
                                 'userEnteredFormat': {
-                                    'backgroundColor': {
-                                        'red': 0.12,
-                                        'green': 0.31,
-                                        'blue': 0.47
-                                    },
-                                    'textFormat': {
-                                        'foregroundColor': {'red': 1.0, 'green': 1.0, 'blue': 1.0},
-                                        'bold': True,
-                                        'fontFamily': 'Arial',
-                                        'fontSize': 10
-                                    },
+                                    'backgroundColor': {'red': 0.12, 'green': 0.31, 'blue': 0.47},
+                                    'textFormat': {'foregroundColor': {'red': 1.0, 'green': 1.0, 'blue': 1.0}, 'bold': True, 'fontFamily': 'Arial', 'fontSize': 10},
                                     'horizontalAlignment': 'CENTER',
                                     'verticalAlignment': 'MIDDLE'
                                 }
@@ -480,7 +454,6 @@ def push_sqlite_to_sheets(progress_callback=None, force_full=False):
                             'fields': 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'
                         }
                     },
-                    # Column widths auto-resize
                     {
                         'autoResizeDimensions': {
                             'dimensions': {
@@ -493,21 +466,26 @@ def push_sqlite_to_sheets(progress_callback=None, force_full=False):
                     }
                 ]
                 
+                try:
+                    sheets_service.spreadsheets().batchUpdate(
+                        spreadsheetId=spreadsheet_id,
+                        body={'requests': style_requests}
+                    ).execute()
+                except Exception as ex_style:
+                    print(f"Style batch update error for {table}: {ex_style}")
+
                 # Fetch row data to generate smart chips for PDF columns
-                cur.execute(f"PRAGMA table_info({table})")
-                columns_info = cur.fetchall()
-                select_cols = [c[1] for c in columns_info if not c[1].endswith("_data")]
                 cols_str = ", ".join(f'"{c}"' for c in select_cols)
-                
                 cur.execute(f"SELECT {cols_str} FROM {table}")
                 rows_data = cur.fetchall()
                 
+                chip_requests = []
                 for r_idx, row_record in enumerate(rows_data, 1): # row index 0 is header
                     for c_idx, col_name in enumerate(select_cols):
                         if col_name.endswith("_pdf"):
                             val = row_record[c_idx]
                             if val and str(val).startswith("http") and "drive.google.com" in str(val):
-                                format_requests.append({
+                                chip_requests.append({
                                     'updateCells': {
                                         'rows': [{
                                             'values': [{
@@ -533,14 +511,16 @@ def push_sqlite_to_sheets(progress_callback=None, force_full=False):
                                     }
                                 })
                 
-                # Chunk format_requests into batches of 500 to avoid payload size limit issues
-                chunk_size = 500
-                for i in range(0, len(format_requests), chunk_size):
-                    chunk = format_requests[i:i + chunk_size]
-                    sheets_service.spreadsheets().batchUpdate(
-                        spreadsheetId=spreadsheet_id,
-                        body={'requests': chunk}
-                    ).execute()
+                # Chunk chip_requests into batches of 10 max
+                for i in range(0, len(chip_requests), 10):
+                    chunk = chip_requests[i:i + 10]
+                    try:
+                        sheets_service.spreadsheets().batchUpdate(
+                            spreadsheetId=spreadsheet_id,
+                            body={'requests': chunk}
+                        ).execute()
+                    except Exception as ex_chip:
+                        print(f"Chip batch update error for {table} chunk {i}: {ex_chip}")
     except Exception as e:
         print(f"Failed to style sheets: {e}")
 

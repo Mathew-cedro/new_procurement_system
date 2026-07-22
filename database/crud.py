@@ -857,6 +857,7 @@ def save_project_document(target_id, document_type, file_path):
                 
         conn.commit()
         conn.close()
+        mark_database_modified()
         return True, rel_path
     except Exception as e:
         return False, str(e)
