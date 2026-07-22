@@ -300,14 +300,19 @@ def migrate_local_files_to_drive():
     cur.execute("PRAGMA foreign_keys = ON")
     conn.close()
 
-def push_sqlite_to_sheets():
+def push_sqlite_to_sheets(progress_callback=None):
     """Pushes all 5 local SQLite tables to Google Sheets."""
-    # First migrate any local files to Drive so we don't sync local paths
+    def p(pct, msg):
+        if progress_callback:
+            progress_callback(pct, msg)
+
+    p(5, "Scanning and migrating local PDF files to Google Drive...")
     try:
         migrate_local_files_to_drive()
     except Exception as e:
         print(f"File migration skip/failed during sheet push: {e}")
 
+    p(20, "Authenticating Google Services...")
     sheets_service, drive_service = get_google_services()
     spreadsheet_id = ensure_spreadsheet()
     
@@ -321,7 +326,9 @@ def push_sqlite_to_sheets():
     sheets = sheet_metadata.get('sheets', [])
     sheet_titles = [s['properties']['title'] for s in sheets]
     
-    for table in tables:
+    for idx, table in enumerate(tables):
+        pct = 25 + int((idx / len(tables)) * 50)
+        p(pct, f"Pushing table '{table}' ({idx+1}/{len(tables)}) to Google Sheets...")
         if table not in sheet_titles:
             body = {
                 'requests': [{
@@ -366,6 +373,7 @@ def push_sqlite_to_sheets():
             valueInputOption='RAW', body=body
         ).execute()
         
+    p(80, "Formatting Google Drive PDF Smart Chips...")
     # Apply styling & auto-fit column widths to each sheet
     try:
         sheet_metadata_new = sheets_service.spreadsheets().get(spreadsheetId=spreadsheet_id).execute()
@@ -494,11 +502,18 @@ def push_sqlite_to_sheets():
     except Exception as e:
         print(f"Skipped deleting default Sheet1: {e}")
 
+    p(95, "Finalizing sync...")
     conn.close()
+    p(100, "Google Sheets Sync Completed!")
     return spreadsheet_id
 
-def pull_sheets_to_sqlite():
+def pull_sheets_to_sqlite(progress_callback=None):
     """Pulls online changes from Google Sheets back into the local SQLite database, resolving smart chips if present."""
+    def p(pct, msg):
+        if progress_callback:
+            progress_callback(pct, msg)
+
+    p(10, "Connecting to Google Sheets API...")
     sheets_service, drive_service = get_google_services()
     spreadsheet_id = ensure_spreadsheet()
     
@@ -519,7 +534,9 @@ def pull_sheets_to_sqlite():
     try:
         cur.execute("PRAGMA foreign_keys = OFF")
         
-        for table in tables:
+        for idx, table in enumerate(tables):
+            pct = 20 + int((idx / len(tables)) * 70)
+            p(pct, f"Pulling and merging table '{table}' ({idx+1}/{len(tables)})...")
             try:
                 # 1. Fetch raw values first (very fast, handles thousands of rows in milliseconds)
                 res = sheets_service.spreadsheets().values().get(
@@ -683,6 +700,7 @@ from PySide6.QtCore import QThread, Signal
 
 class GoogleSyncWorker(QThread):
     finished = Signal(bool, str) # (success, message)
+    progress = Signal(int, str)  # (percent, status_text)
     
     def __init__(self, action_type="push", local_path=None, filename=None):
         super().__init__()
@@ -692,12 +710,15 @@ class GoogleSyncWorker(QThread):
         self.result_url = None
         
     def run(self):
+        def cb(pct, msg):
+            self.progress.emit(pct, msg)
+
         try:
             if self.action_type == "push":
-                sid = push_sqlite_to_sheets()
+                sid = push_sqlite_to_sheets(progress_callback=cb)
                 self.finished.emit(True, sid)
             elif self.action_type == "pull":
-                pull_sheets_to_sqlite()
+                pull_sheets_to_sqlite(progress_callback=cb)
                 self.finished.emit(True, "Pull completed successfully.")
             elif self.action_type == "upload":
                 url = upload_file_to_drive(self.local_path, self.filename)

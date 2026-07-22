@@ -2110,9 +2110,14 @@ class Dashboard(QMainWindow):
         self.set_sync_buttons_enabled(False)
         
         from services.google_sheets import GoogleSyncWorker
+        from ui.dialogs import SyncProgressDialog
+        
         self.push_worker = GoogleSyncWorker(action_type="push")
+        self.progress_dlg = SyncProgressDialog(title="Syncing Database to Google Sheets...", parent=self)
+        self.push_worker.progress.connect(self.progress_dlg.update_progress)
         
         def on_push_finished(success, result):
+            self.progress_dlg.close()
             self.unsetCursor()
             self.set_sync_buttons_enabled(True)
             if success:
@@ -2136,6 +2141,7 @@ class Dashboard(QMainWindow):
                 
         self.push_worker.finished.connect(on_push_finished)
         self.push_worker.start()
+        self.progress_dlg.show()
 
     def pull_data_from_sheets(self):
         import database as database_config
@@ -2163,9 +2169,14 @@ class Dashboard(QMainWindow):
         self.set_sync_buttons_enabled(False)
         
         from services.google_sheets import GoogleSyncWorker
+        from ui.dialogs import SyncProgressDialog
+        
         self.pull_worker = GoogleSyncWorker(action_type="pull")
+        self.progress_dlg = SyncProgressDialog(title="Pulling Data from Google Sheets...", parent=self)
+        self.pull_worker.progress.connect(self.progress_dlg.update_progress)
         
         def on_pull_finished(success, result):
+            self.progress_dlg.close()
             self.unsetCursor()
             self.set_sync_buttons_enabled(True)
             if success:
@@ -2190,6 +2201,7 @@ class Dashboard(QMainWindow):
                 
         self.pull_worker.finished.connect(on_pull_finished)
         self.pull_worker.start()
+        self.progress_dlg.show()
 
     def trigger_background_push(self, silent=True):
         import database as database_config
