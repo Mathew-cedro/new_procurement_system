@@ -131,7 +131,7 @@ class Dashboard(QMainWindow):
         header_h_layout = QHBoxLayout()
         header_h_layout.setContentsMargins(5, 0, 5, 0)
         
-        self.app_title = QLabel("NEXUS PTP")
+        self.app_title = QLabel("PROCUREMENT TRACKER")
         self.app_title.setStyleSheet("""
             font-size: 18px; 
             font-weight: bold; 
@@ -274,10 +274,10 @@ class Dashboard(QMainWindow):
         self.create_project_btn = QPushButton("➕ Create Project")
         self.create_project_btn.setStyleSheet("""
             QPushButton {
-                background-color: #00ffcc; color: #13131a;
-                font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                background-color: #FFDE15; color: #10182B;
+                font-weight: bold; border-radius: 5px; padding: 8px 15px; border: none;
             }
-            QPushButton:hover { background-color: #00ccaa; }
+            QPushButton:hover { background-color: #e6c812; }
         """)
         self.create_project_btn.clicked.connect(self.create_new_project)
         header_layout.addWidget(self.create_project_btn)
@@ -285,11 +285,12 @@ class Dashboard(QMainWindow):
         self.export_btn = QPushButton("☁️ Sync Sheets")
         self.export_btn.setStyleSheet("""
             QPushButton {
-                background-color: #1f4e78; color: #ffffff;
+                background-color: #002C76; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
+                border: 1px solid #1a428a;
                 margin-left: 10px;
             }
-            QPushButton:hover { background-color: #1a4063; }
+            QPushButton:hover { background-color: #003896; }
         """)
         self.export_btn.clicked.connect(self.sync_google_sheets_action)
         header_layout.addWidget(self.export_btn)
@@ -297,12 +298,12 @@ class Dashboard(QMainWindow):
         self.open_sheets_header_btn = QPushButton("🟢 Open Sheets")
         self.open_sheets_header_btn.setStyleSheet("""
             QPushButton {
-                background-color: #0284c7; color: #ffffff;
+                background-color: #1F9D55; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
                 border: none;
                 margin-left: 10px;
             }
-            QPushButton:hover { background-color: #0369a1; }
+            QPushButton:hover { background-color: #167a42; }
         """)
         self.open_sheets_header_btn.clicked.connect(self.open_google_sheet_in_browser)
         header_layout.addWidget(self.open_sheets_header_btn)
@@ -310,12 +311,12 @@ class Dashboard(QMainWindow):
         self.refresh_btn = QPushButton("Refresh Data")
         self.refresh_btn.setStyleSheet("""
             QPushButton {
-                background-color: #3a3a4a; color: #ffffff;
+                background-color: #182238; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
-                border: 1px solid #5a5a6a;
+                border: 1px solid #253454;
                 margin-left: 10px;
             }
-            QPushButton:hover { background-color: #4a4a5a; }
+            QPushButton:hover { background-color: #253454; }
         """)
         self.refresh_btn.clicked.connect(self.refresh_all_data)
         header_layout.addWidget(self.refresh_btn)
@@ -323,9 +324,9 @@ class Dashboard(QMainWindow):
         
         # Stats Cards
         self.cards_layout = QHBoxLayout()
-        self.budget_card = StatCard("TOTAL PROCUREMENT BUDGET (ABC)", "₱0.00", "#00ffcc")
-        self.awarded_card = StatCard("TOTAL CONTRACT VALUE", "₱0.00", "#33ccff")
-        self.paid_card = StatCard("TOTAL DISBURSED (NET)", "₱0.00", "#2ecc71")
+        self.budget_card = StatCard("TOTAL PROCUREMENT BUDGET (ABC)", "₱0.00", "#FFDE15")
+        self.awarded_card = StatCard("TOTAL CONTRACT VALUE", "₱0.00", "#38bdf8")
+        self.paid_card = StatCard("TOTAL DISBURSED (NET)", "₱0.00", "#1F9D55")
         self.cards_layout.addWidget(self.budget_card)
         self.cards_layout.addWidget(self.awarded_card)
         self.cards_layout.addWidget(self.paid_card)
@@ -340,14 +341,14 @@ class Dashboard(QMainWindow):
         self.timeline_panel.setObjectName("TimelinePanel")
         self.timeline_panel.setStyleSheet("""
             #TimelinePanel {
-                background-color: #2b2b36; border-radius: 8px; border: 1px solid #3a3a4a;
+                background-color: #182238; border-radius: 8px; border: 1px solid #253454;
             }
         """)
         timeline_p_layout = QVBoxLayout(self.timeline_panel)
         timeline_p_layout.setContentsMargins(15, 15, 15, 15)
         
         self.timeline_title = QLabel("📅 Project Schedule & Action Tracker")
-        self.timeline_title.setStyleSheet("color: #00ffcc; font-size: 14px; font-weight: bold; margin-bottom: 8px;")
+        self.timeline_title.setStyleSheet("color: #FFDE15; font-size: 14px; font-weight: bold; margin-bottom: 8px;")
         timeline_p_layout.addWidget(self.timeline_title)
         
         self.timeline_list_layout = QVBoxLayout()
@@ -362,7 +363,7 @@ class Dashboard(QMainWindow):
         self.stats_panel.setObjectName("StatsPanel")
         self.stats_panel.setStyleSheet("""
             #StatsPanel {
-                background-color: #2b2b36; border-radius: 8px; border: 1px solid #3a3a4a;
+                background-color: #182238; border-radius: 8px; border: 1px solid #253454;
             }
         """)
         stats_layout = QVBoxLayout(self.stats_panel)
@@ -370,7 +371,7 @@ class Dashboard(QMainWindow):
         stats_layout.setSpacing(12)
         
         self.stats_title = QLabel("📊 Financial Savings & Supplier Directory")
-        self.stats_title.setStyleSheet("color: #00ffcc; font-size: 14px; font-weight: bold;")
+        self.stats_title.setStyleSheet("color: #FFDE15; font-size: 14px; font-weight: bold;")
         stats_layout.addWidget(self.stats_title)
         
         # Financial rows layout
@@ -386,12 +387,12 @@ class Dashboard(QMainWindow):
         self.sep = QFrame()
         self.sep.setFrameShape(QFrame.HLine)
         self.sep.setFrameShadow(QFrame.Sunken)
-        self.sep.setStyleSheet("background-color: #3a3a4a; max-height: 1px; border: none;")
+        self.sep.setStyleSheet("background-color: #253454; max-height: 1px; border: none;")
         stats_layout.addWidget(self.sep)
         
         # Leaderboard title
         self.leaderboard_title = QLabel("🏆 Top Supplier Leaderboard")
-        self.leaderboard_title.setStyleSheet("color: #00ffcc; font-size: 12px; font-weight: bold;")
+        self.leaderboard_title.setStyleSheet("color: #FFDE15; font-size: 12px; font-weight: bold;")
         stats_layout.addWidget(self.leaderboard_title)
         
         self.leaderboard_layout = QVBoxLayout()
@@ -502,11 +503,11 @@ class Dashboard(QMainWindow):
         self.create_project_btn_cards = QPushButton("➕ Create Project")
         self.create_project_btn_cards.setStyleSheet("""
             QPushButton {
-                background-color: #00ffcc; color: #13131a;
+                background-color: #FFDE15; color: #10182B;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
-                margin-right: 15px;
+                border: none; margin-right: 15px;
             }
-            QPushButton:hover { background-color: #00ccaa; }
+            QPushButton:hover { background-color: #e6c812; }
         """)
         self.create_project_btn_cards.clicked.connect(self.create_new_project)
         cards_header.addWidget(self.create_project_btn_cards)
@@ -514,11 +515,11 @@ class Dashboard(QMainWindow):
         self.export_btn_cards = QPushButton("☁️ Sync Sheets")
         self.export_btn_cards.setStyleSheet("""
             QPushButton {
-                background-color: #1f4e78; color: #ffffff;
+                background-color: #002C76; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
-                margin-right: 15px;
+                border: 1px solid #1a428a; margin-right: 15px;
             }
-            QPushButton:hover { background-color: #1a4063; }
+            QPushButton:hover { background-color: #003896; }
         """)
         self.export_btn_cards.clicked.connect(self.sync_google_sheets_action)
         cards_header.addWidget(self.export_btn_cards)
@@ -526,12 +527,11 @@ class Dashboard(QMainWindow):
         self.open_sheets_header_btn_cards = QPushButton("🟢 Open Sheets")
         self.open_sheets_header_btn_cards.setStyleSheet("""
             QPushButton {
-                background-color: #0284c7; color: #ffffff;
+                background-color: #1F9D55; color: #ffffff;
                 font-weight: bold; border-radius: 5px; padding: 8px 15px;
-                border: none;
-                margin-right: 15px;
+                border: none; margin-right: 15px;
             }
-            QPushButton:hover { background-color: #0369a1; }
+            QPushButton:hover { background-color: #167a42; }
         """)
         self.open_sheets_header_btn_cards.clicked.connect(self.open_google_sheet_in_browser)
         cards_header.addWidget(self.open_sheets_header_btn_cards)
